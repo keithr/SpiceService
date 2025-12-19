@@ -7,6 +7,15 @@ This software is free for personal, non-commercial use. Commercial use requires 
 
 SpiceService is a comprehensive .NET 8 solution for SPICE-based circuit simulation, providing a clean API, MCP (Model Context Protocol) server, and Windows tray application for managing circuit simulation services. The project enables circuit design, analysis, and visualization through both programmatic APIs and MCP protocol integration.
 
+## Quick Install
+
+A pre-built MSI installer is available in the `dist` directory:
+- **Location**: `dist\SpiceServiceTray.msi`
+- **Installation**: Double-click the MSI file to install (per-user installation, no administrator privileges required)
+- **Includes**: Tray application, MCP server, and 500+ SPICE component libraries
+
+To build the installer yourself, see the [Installing via MSI](#installing-via-msi) section below.
+
 Projects
 --------
 - `SpiceSharp.Api.Core`: Core models and services (AC/DC/transient analysis, netlist, components)
