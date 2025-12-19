@@ -1,0 +1,31 @@
+<Project>
+  <PropertyGroup>
+    <!-- Copyright -->
+    <Copyright>Copyright (c) 2025 Keith Rule</Copyright>
+    <Authors>Keith Rule</Authors>
+    <Company>SpiceService</Company>
+    
+    <!-- Base version: Major.Minor.Patch -->
+    <VersionMajor>1</VersionMajor>
+    <VersionMinor>0</VersionMinor>
+    <VersionPatch>0</VersionPatch>
+    
+    <!-- Build number: Days since 2024-01-01 -->
+    <!-- This gives us a build number that increments daily -->
+    <BuildNumber>$([System.DateTime]::Now.Subtract($([System.DateTime]::Parse("2024-01-01"))).TotalDays.ToString("0"))</BuildNumber>
+    
+    <!-- Revision: Minutes since midnight (0-1439) -->
+    <!-- This ensures each build gets a unique version number within the 16-bit limit (max 65535) -->
+    <Revision>$([System.DateTime]::Now.TimeOfDay.TotalMinutes.ToString("0"))</Revision>
+    
+    <!-- Full version string: Major.Minor.Build.Revision -->
+    <!-- Build = days since 2024-01-01, Revision = minutes since midnight -->
+    <Version>$(VersionMajor).$(VersionMinor).$(BuildNumber).$(Revision)</Version>
+    
+    <!-- Assembly version attributes -->
+    <AssemblyVersion>$(Version)</AssemblyVersion>
+    <FileVersion>$(Version)</FileVersion>
+    <InformationalVersion>$(VersionMajor).$(VersionMinor).$(VersionPatch) (Build $(BuildNumber).$(Revision))</InformationalVersion>
+  </PropertyGroup>
+</Project>
+

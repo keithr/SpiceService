@@ -1,0 +1,6 @@
+bin/
+obj/
+*.wixpdb
+*.wixobj
+HarvestedFiles.wxs
+

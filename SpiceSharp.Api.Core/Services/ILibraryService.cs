@@ -1,0 +1,24 @@
+using SpiceSharp.Api.Core.Models;
+
+namespace SpiceSharp.Api.Core.Services;
+
+/// <summary>
+/// Service for indexing and searching SPICE component libraries
+/// </summary>
+public interface ILibraryService
+{
+    /// <summary>
+    /// Indexes all .lib files in the specified directories (recursively)
+    /// </summary>
+    /// <param name="libraryPaths">Directories to scan for .lib files</param>
+    void IndexLibraries(IEnumerable<string> libraryPaths);
+
+    /// <summary>
+    /// Searches for models matching the query
+    /// </summary>
+    /// <param name="query">Search query (model name substring, case-insensitive)</param>
+    /// <param name="typeFilter">Optional model type filter (e.g., "diode", "bjt_npn")</param>
+    /// <param name="limit">Maximum number of results to return</param>
+    /// <returns>List of matching model definitions</returns>
+    List<ModelDefinition> SearchModels(string query, string? typeFilter, int limit);
+}

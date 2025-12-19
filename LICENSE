@@ -1,0 +1,61 @@
+SpiceService License
+====================
+
+Copyright (c) 2025 Keith Rule
+
+This software is provided under a dual-license model:
+
+1. PERSONAL USE LICENSE
+   ---------------------
+   This software is free for personal, non-commercial use. You may use,
+   modify, and distribute this software for personal purposes without
+   payment or licensing fees.
+
+2. COMMERCIAL USE LICENSE
+   ----------------------
+   Commercial use of this software requires a commercial license. 
+   Commercial use includes, but is not limited to:
+   - Use in commercial products or services
+   - Use by businesses, organizations, or institutions
+   - Use for revenue-generating activities
+   - Use in internal business operations
+
+   For commercial licensing inquiries, please contact the copyright holder.
+
+THIRD-PARTY COMPONENTS
+======================
+
+This software incorporates the following third-party components:
+
+1. SpiceSharp
+   -----------
+   This software uses SpiceSharp, a circuit simulation library.
+   SpiceSharp is provided under a liberal open-source license (MIT/BSD-style).
+   Copyright and license information for SpiceSharp can be found at:
+   https://github.com/SpiceSharp/SpiceSharp
+
+2. KiCad Spice Library Models
+   ----------------------------
+   This software includes SPICE models from the KiCad Spice Library as a
+   courtesy. These models are provided under the GNU General Public License
+   version 3 (GPL-3.0).
+
+   The KiCad Spice Library models are included for convenience and are
+   subject to the GPL-3.0 license terms. For the full GPL-3.0 license text,
+   see the LICENSE file in the archive/third-party-libraries/KiCad-Spice-Library-master/
+   directory, or visit: https://www.gnu.org/licenses/gpl-3.0.html
+
+   Note: The inclusion of GPL-3.0 licensed models does not affect the
+   licensing of the SpiceService software itself, as these are separate
+   components distributed together.
+
+DISCLAIMER
+==========
+
+THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

@@ -1,0 +1,46 @@
+* Sample SPICE Component Library
+* This is a demonstration library file for testing library_search functionality
+* Place this file in a directory and configure that directory in MCPServerConfig.LibraryPaths
+
+* Diode Models
+.MODEL D1N4001 D (
++ IS=1E-14
++ RS=0.5
++ N=1.5
++ )
+
+.MODEL D1N4002 D (
++ IS=2E-14
++ RS=0.6
++ N=1.6
++ )
+
+.MODEL D1N4148 D (
++ IS=2E-14    * Saturation current
++ RS=0.5      * Series resistance
++ N=1.8       * Ideality factor
++ )
+
+* Transistor Models
+.MODEL Q2N3904 NPN (
++ IS=1E-16
++ BF=100
++ VAF=100
++ )
+
+.MODEL Q2N3906 PNP (
++ IS=1E-16
++ BF=50
++ VAF=50
++ )
+
+* MOSFET Models
+.MODEL M2N7000 NMOS (
++ VTO=2.0
++ KP=0.1
++ )
+
+.MODEL M2N7002 NMOS (
++ VTO=2.5
++ KP=0.15
++ )

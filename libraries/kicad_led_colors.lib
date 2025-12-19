@@ -1,0 +1,133 @@
+* Color-Specific LED Models
+* These models represent common LED colors with typical forward voltage characteristics
+* Based on standard LED specifications
+
+* Red LED - Typical forward voltage: 1.8-2.2V
+.MODEL LED_RED D (
++ IS=1E-14
++ RS=0.8
++ N=1.8
++ CJO=18P
++ BV=5
++ IBV=10U
++ VJ=0.75
++ M=0.333
++ TT=4.32N
++ )
+
+* Green LED - Typical forward voltage: 2.0-3.5V
+.MODEL LED_GREEN D (
++ IS=5E-15
++ RS=1.0
++ N=2.0
++ CJO=20P
++ BV=5
++ IBV=10U
++ VJ=0.75
++ M=0.333
++ TT=4.32N
++ )
+
+* Blue LED - Typical forward voltage: 3.0-3.6V
+.MODEL LED_BLUE D (
++ IS=2E-15
++ RS=1.2
++ N=2.2
++ CJO=22P
++ BV=5
++ IBV=10U
++ VJ=0.75
++ M=0.333
++ TT=4.32N
++ )
+
+* White LED - Typical forward voltage: 3.0-3.6V (similar to blue)
+.MODEL LED_WHITE D (
++ IS=2E-15
++ RS=1.2
++ N=2.2
++ CJO=25P
++ BV=5
++ IBV=10U
++ VJ=0.75
++ M=0.333
++ TT=4.32N
++ )
+
+* Yellow LED - Typical forward voltage: 2.0-2.4V
+.MODEL LED_YELLOW D (
++ IS=3E-15
++ RS=0.9
++ N=1.9
++ CJO=19P
++ BV=5
++ IBV=10U
++ VJ=0.75
++ M=0.333
++ TT=4.32N
++ )
+
+* Orange LED - Typical forward voltage: 2.0-2.2V
+.MODEL LED_ORANGE D (
++ IS=2E-15
++ RS=0.85
++ N=1.85
++ CJO=18P
++ BV=5
++ IBV=10U
++ VJ=0.75
++ M=0.333
++ TT=4.32N
++ )
+
+* High-Brightness White LED - Typical forward voltage: 3.2-3.8V
+.MODEL LED_WHITE_HB D (
++ IS=1.5E-15
++ RS=1.5
++ N=2.3
++ CJO=30P
++ BV=5
++ IBV=10U
++ VJ=0.75
++ M=0.333
++ TT=4.32N
++ )
+
+* RGB LED (Red channel) - For RGB common-anode/cathode LEDs
+.MODEL LED_RGB_RED D (
++ IS=1E-14
++ RS=0.8
++ N=1.8
++ CJO=18P
++ BV=5
++ IBV=10U
++ VJ=0.75
++ M=0.333
++ TT=4.32N
++ )
+
+* RGB LED (Green channel)
+.MODEL LED_RGB_GREEN D (
++ IS=5E-15
++ RS=1.0
++ N=2.0
++ CJO=20P
++ BV=5
++ IBV=10U
++ VJ=0.75
++ M=0.333
++ TT=4.32N
++ )
+
+* RGB LED (Blue channel)
+.MODEL LED_RGB_BLUE D (
++ IS=2E-15
++ RS=1.2
++ N=2.2
++ CJO=22P
++ BV=5
++ IBV=10U
++ VJ=0.75
++ M=0.333
++ TT=4.32N
++ )

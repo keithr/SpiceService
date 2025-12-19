@@ -1,0 +1,52 @@
+# Build outputs
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.DotSettings.user
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# NuGet
+*.nupkg
+!netlistsvg/NetlistSvg.1.0.0.nupkg
+*.snupkg
+*.nuspec
+packages/
+
+# Cache/Logs
+*.cache
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test/coverage
+TestResults/
+*.coverage
+*.coveragexml
+coverage/
+
+# ReSharper/Rider
+_ReSharper*/
+*.DotSettings
+
+# Generated
+*.g.cs
+*.generated.cs
+
+# Archive (local only, not tracked)
+archive/
+
+
