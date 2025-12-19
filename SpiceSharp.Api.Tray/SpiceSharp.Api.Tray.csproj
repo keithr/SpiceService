@@ -1,0 +1,37 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>SpiceServiceTray</AssemblyName>
+    <ApplicationIcon>..\resources\spice.ico</ApplicationIcon>
+    <PlatformTarget>x64</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SpiceSharp.Api.Core\SpiceSharp.Api.Core.csproj" />
+    <ProjectReference Include="..\SpiceSharp.Api.Web\SpiceSharp.Api.Web.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\resources\spice_50x50.png">
+      <Link>Resources\spice_50x50.png</Link>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\resources\spice_100x100.png">
+      <Link>Resources\spice_100x100.png</Link>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SpiceSharpBehavioral" Version="3.2.0" />
+  </ItemGroup>
+
+</Project>
