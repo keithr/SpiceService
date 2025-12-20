@@ -12,6 +12,7 @@ using SpiceSharp.Api.Core.Services;
 using SpiceSharp.Api.Web.Models;
 using SpiceSharp.Api.Web.Services;
 using SpiceSharp.Api.Tray.Services;
+using SpiceSharp.Api.Tray.Models;
 
 namespace SpiceSharp.Api.Tray;
 
@@ -256,6 +257,23 @@ public class TrayApplication : ApplicationContext
             // Configure middleware
             _webApp.UseCors("MCPPolicy");
             
+            // Map discovery endpoint (for McpRemote.exe to find current MCP endpoint)
+            _webApp.MapGet("/discovery", async (HttpContext context) =>
+            {
+                var host = _networkVisible 
+                    ? (_mcpConfig.LocalIp ?? "127.0.0.1") 
+                    : "127.0.0.1";
+                var endpointUrl = $"http://{host}:{_mcpConfig.Port}/mcp";
+                
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    mcpEndpoint = endpointUrl,
+                    port = _mcpConfig.Port,
+                    host = host,
+                    networkVisible = _networkVisible
+                });
+            });
+            
             // Map MCP endpoint
             _webApp.MapPost("/mcp", async (HttpContext context) =>
             {
@@ -300,10 +318,12 @@ public class TrayApplication : ApplicationContext
                     }
                     
                     var method = methodElement.GetString() ?? throw new InvalidOperationException("method must be a string");
-                    JsonElement? id = request.TryGetProperty("id", out var idElement) ? idElement : null;
+                    bool hasId = request.TryGetProperty("id", out var idElement);
+                    bool isNotification = !hasId;
+                    JsonElement? id = hasId ? idElement : null;
                     var @params = request.TryGetProperty("params", out var paramsElement) ? paramsElement : default(JsonElement);
                     
-                    _logBuffer.Add(Services.LogLevel.Information, $"Processing MCP method: {method} from {remoteEndpoint} (ID: {(id.HasValue ? id.Value.ToString() : "null")})");
+                    _logBuffer.Add(Services.LogLevel.Information, $"Processing MCP method: {method} from {remoteEndpoint} (ID: {(id.HasValue ? id.Value.ToString() : isNotification ? "notification" : "null")})");
                     
                     // Route to appropriate handler
                     object? result = method switch
@@ -311,6 +331,7 @@ public class TrayApplication : ApplicationContext
                         "initialize" => HandleInitialize(),
                         "tools/list" => HandleToolsList(),
                         "tools/call" => await HandleToolsCall(@params),
+                        "notifications/initialized" => null, // Notification - no response
                         _ => throw new InvalidOperationException($"Method not found: {method}")
                     };
                     
@@ -352,11 +373,31 @@ public class TrayApplication : ApplicationContext
                         return toolResult;
                     }
                     
+                    // JSON-RPC spec: Notifications (no id) should not receive responses
+                    if (isNotification)
+                    {
+                        _logBuffer.Add(Services.LogLevel.Debug, $"Skipping response for notification: {method}");
+                        return; // Don't send any response for notifications
+                    }
+                    
+                    // Build response for requests (must have id)
                     var response = new Dictionary<string, object> { { "jsonrpc", "2.0" } };
-                    if (id.HasValue && id.Value.ValueKind != JsonValueKind.Null)
-                        response["id"] = id.Value;
-                    else if (id.HasValue)
-                        response["id"] = null!;
+                    
+                    // Include id if present (should always be present for requests, but handle null case)
+                    if (id.HasValue)
+                    {
+                        if (id.Value.ValueKind == JsonValueKind.Null)
+                        {
+                            // Request had "id": null - include null in response (only for error responses per spec)
+                            // But for successful responses, we should have a valid id
+                            response["id"] = null!;
+                        }
+                        else
+                        {
+                            response["id"] = id.Value;
+                        }
+                    }
+                    
                     if (result != null)
                         response["result"] = result;
                     
@@ -742,6 +783,10 @@ public class TrayApplication : ApplicationContext
             SetNetworkVisibility(_networkVisible);
         };
         menu.Items.Add(networkVisibilityItem);
+
+        var configureIDEItem = new ToolStripMenuItem("Configure IDE Integration...");
+        configureIDEItem.Click += (s, e) => ShowIDEConfigurationDialog();
+        menu.Items.Add(configureIDEItem);
 
         menu.Items.Add(new ToolStripSeparator());
 
@@ -1135,6 +1180,44 @@ public class TrayApplication : ApplicationContext
         }
         
         base.ExitThreadCore();
+    }
+    
+    /// <summary>
+    /// Get the current MCP endpoint URL
+    /// </summary>
+    public string GetEndpointUrl()
+    {
+        var host = _networkVisible 
+            ? (_mcpConfig.LocalIp ?? "127.0.0.1") 
+            : "127.0.0.1";
+        return $"http://{host}:{_mcpConfig.Port}/mcp";
+    }
+    
+    /// <summary>
+    /// Check if the server is healthy/running
+    /// </summary>
+    public bool IsServerHealthy()
+    {
+        return _webApp != null;
+    }
+    
+    /// <summary>
+    /// Show the IDE configuration dialog
+    /// </summary>
+    private void ShowIDEConfigurationDialog()
+    {
+        // Determine McpRemote.exe path (same directory as executable)
+        var proxyPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "McpRemote.exe");
+        
+        var input = new IDEConfigurationInput
+        {
+            McpEndpointUrl = GetEndpointUrl(),
+            ProxyExecutablePath = proxyPath,
+            IsServerRunning = IsServerHealthy()
+        };
+        
+        using var dialog = new IDEConfigurationDialog(input);
+        dialog.ShowDialog();
     }
 }
 

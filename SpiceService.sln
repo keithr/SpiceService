@@ -17,6 +17,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpiceSharp.Api.Plot", "Spic
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpiceSharp.Api.Plot.Tests", "SpiceSharp.Api.Plot.Tests\SpiceSharp.Api.Plot.Tests.csproj", "{0F9D26A3-C780-457D-BD20-C8084E94FF09}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "McpRemote", "McpRemote\McpRemote.csproj", "{7204330A-EF24-43BB-B578-67D491EF2C58}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -107,6 +109,18 @@ Global
 		{0F9D26A3-C780-457D-BD20-C8084E94FF09}.Release|x64.Build.0 = Release|Any CPU
 		{0F9D26A3-C780-457D-BD20-C8084E94FF09}.Release|x86.ActiveCfg = Release|Any CPU
 		{0F9D26A3-C780-457D-BD20-C8084E94FF09}.Release|x86.Build.0 = Release|Any CPU
+		{7204330A-EF24-43BB-B578-67D491EF2C58}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7204330A-EF24-43BB-B578-67D491EF2C58}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7204330A-EF24-43BB-B578-67D491EF2C58}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{7204330A-EF24-43BB-B578-67D491EF2C58}.Debug|x64.Build.0 = Debug|Any CPU
+		{7204330A-EF24-43BB-B578-67D491EF2C58}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{7204330A-EF24-43BB-B578-67D491EF2C58}.Debug|x86.Build.0 = Debug|Any CPU
+		{7204330A-EF24-43BB-B578-67D491EF2C58}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7204330A-EF24-43BB-B578-67D491EF2C58}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7204330A-EF24-43BB-B578-67D491EF2C58}.Release|x64.ActiveCfg = Release|Any CPU
+		{7204330A-EF24-43BB-B578-67D491EF2C58}.Release|x64.Build.0 = Release|Any CPU
+		{7204330A-EF24-43BB-B578-67D491EF2C58}.Release|x86.ActiveCfg = Release|Any CPU
+		{7204330A-EF24-43BB-B578-67D491EF2C58}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

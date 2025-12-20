@@ -40,6 +40,13 @@
         <File Id="SpiceServiceTray.dll" 
               Source="$(var.TrayAppSourceDir)\SpiceServiceTray.dll" />
       </Component>
+      
+      <!-- McpRemote.exe proxy executable - must be colocated with tray app -->
+      <Component Id="McpRemoteExecutable" Guid="f6a7b8c9-d0e1-2345-fabc-456789012345">
+        <File Id="McpRemote.exe" 
+              Source="$(var.McpRemoteSourceDir)\McpRemote.exe" 
+              KeyPath="yes" />
+      </Component>
     </ComponentGroup>
 
     <!-- Component Libraries -->

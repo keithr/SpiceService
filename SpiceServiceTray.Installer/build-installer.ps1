@@ -8,8 +8,27 @@ param(
 
 Write-Host "Building SpiceService Tray MSI Installer..." -ForegroundColor Cyan
 
-# Step 1: Build the tray application (skip if files are locked but exist)
-Write-Host "`nStep 1: Building tray application..." -ForegroundColor Yellow
+# Step 1: Build and publish McpRemote.exe
+Write-Host "`nStep 1: Building and publishing McpRemote.exe..." -ForegroundColor Yellow
+$mcpRemoteProject = "..\McpRemote\McpRemote.csproj"
+$mcpRemoteExe = "..\McpRemote\bin\$Configuration\net8.0\win-x64\publish\McpRemote.exe"
+
+dotnet publish $mcpRemoteProject -c $Configuration --runtime win-x64 --self-contained false -p:PublishSingleFile=true
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Failed to publish McpRemote.exe!" -ForegroundColor Red
+    exit 1
+}
+
+if (-not (Test-Path $mcpRemoteExe)) {
+    Write-Host "McpRemote.exe not found at expected location: $mcpRemoteExe" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "McpRemote.exe published successfully" -ForegroundColor Green
+
+# Step 2: Build the tray application (skip if files are locked but exist)
+Write-Host "`nStep 2: Building tray application..." -ForegroundColor Yellow
 $trayProject = "..\SpiceSharp.Api.Tray\SpiceSharp.Api.Tray.csproj"
 $trayAppExe = "..\SpiceSharp.Api.Tray\bin\$Configuration\net8.0-windows\SpiceServiceTray.exe"
 
@@ -25,8 +44,8 @@ if ($LASTEXITCODE -ne 0) {
     }
 }
 
-# Step 2: Check if WiX is installed
-Write-Host "`nStep 2: Checking for WiX Toolset..." -ForegroundColor Yellow
+# Step 3: Check if WiX is installed
+Write-Host "`nStep 3: Checking for WiX Toolset..." -ForegroundColor Yellow
 $wixPath = $null
 
 # Check common WiX installation locations
@@ -85,8 +104,8 @@ if (-not $wixPath -or -not (Test-Path (Join-Path $wixPath "heat.exe"))) {
 }
 Write-Host "WiX Toolset found at: $wixPath" -ForegroundColor Green
 
-# Step 3: Build the installer
-Write-Host "`nStep 3: Building MSI installer..." -ForegroundColor Yellow
+# Step 4: Build the installer
+Write-Host "`nStep 4: Building MSI installer..." -ForegroundColor Yellow
 
 # Find MSBuild
 $msbuild = $null

@@ -40,6 +40,7 @@
 
   <PropertyGroup>
     <TrayAppSourceDir>$(SolutionDir)SpiceSharp.Api.Tray\bin\$(Configuration)\net8.0-windows</TrayAppSourceDir>
+    <McpRemoteSourceDir>$(SolutionDir)McpRemote\bin\$(Configuration)\net8.0\win-x64\publish</McpRemoteSourceDir>
     <SolutionDir Condition="'$(SolutionDir)' == ''">$(MSBuildProjectDirectory)\..\..\</SolutionDir>
     <LibrariesSourceDir>$(SolutionDir)spiceservice\libraries</LibrariesSourceDir>
     <!-- Calculate build number (days since 2024-01-01) -->
@@ -48,6 +49,7 @@
   
   <ItemGroup>
     <WixVariable Include="LibrariesSourceDir" Value="$(LibrariesSourceDir)" />
+    <WixVariable Include="McpRemoteSourceDir" Value="$(McpRemoteSourceDir)" />
     <WixVariable Include="IconPath" Value="$(SolutionDir)resources\spice.ico" />
   </ItemGroup>
 
@@ -59,6 +61,9 @@
     
     <!-- Ensure the tray app has been built -->
     <Error Condition="!Exists('$(TrayAppSourceDir)')" Text="Tray application must be built first. Build SpiceSharp.Api.Tray project in $(Configuration) configuration." />
+    
+    <!-- Ensure McpRemote.exe has been published -->
+    <Error Condition="!Exists('$(McpRemoteSourceDir)\McpRemote.exe')" Text="McpRemote.exe must be published first. Run: dotnet publish McpRemote/McpRemote.csproj --configuration $(Configuration) --runtime win-x64 --self-contained false -p:PublishSingleFile=true" />
     
     <!-- Harvest files from tray app build output -->
     <!-- Exclude the main exe and dll (SpiceServiceTray.exe, SpiceServiceTray.dll) since we define them manually in Product.wxs -->

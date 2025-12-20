@@ -34,4 +34,31 @@
     <PackageReference Include="SpiceSharpBehavioral" Version="3.2.0" />
   </ItemGroup>
 
+  <!-- Copy McpRemote.exe to output directory for development/debugging -->
+  <Target Name="CopyMcpRemote" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug' Or '$(Configuration)' == 'Release'">
+    <PropertyGroup>
+      <!-- Calculate path relative to this project file -->
+      <McpRemoteProjectDir>$(MSBuildProjectDirectory)\..\McpRemote</McpRemoteProjectDir>
+      <McpRemotePublishDir>$(McpRemoteProjectDir)\bin\$(Configuration)\net8.0\win-x64\publish</McpRemotePublishDir>
+      <McpRemoteSource>$(McpRemotePublishDir)\McpRemote.exe</McpRemoteSource>
+      <McpRemoteTarget>$(OutDir)McpRemote.exe</McpRemoteTarget>
+      <McpRemoteProject>$(McpRemoteProjectDir)\McpRemote.csproj</McpRemoteProject>
+    </PropertyGroup>
+    
+    <!-- Ensure McpRemote.exe is published first if it doesn't exist -->
+    <Exec Command="dotnet publish &quot;$(McpRemoteProject)&quot; --configuration $(Configuration) --runtime win-x64 --self-contained false -p:PublishSingleFile=true" 
+          Condition="!Exists('$(McpRemoteSource)')" 
+          ContinueOnError="true" />
+    
+    <!-- Copy McpRemote.exe to output directory -->
+    <Copy SourceFiles="$(McpRemoteSource)" 
+          DestinationFiles="$(McpRemoteTarget)" 
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(McpRemoteSource)')" />
+    
+    <Message Text="Copied McpRemote.exe to $(McpRemoteTarget)" Condition="Exists('$(McpRemoteSource)')" />
+    <Warning Text="McpRemote.exe not found at $(McpRemoteSource). Run: dotnet publish McpRemote/McpRemote.csproj --configuration $(Configuration) --runtime win-x64 --self-contained false -p:PublishSingleFile=true" 
+             Condition="!Exists('$(McpRemoteSource)')" />
+  </Target>
+
 </Project>
