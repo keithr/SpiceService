@@ -181,7 +181,10 @@ public class MCPController : ControllerBase
                 name = _config.Name,
                 version = _config.Version
             },
-            capabilities = new { }
+            capabilities = new
+            {
+                tools = new { }
+            }
         };
     }
 

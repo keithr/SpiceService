@@ -7,11 +7,12 @@ namespace SpiceSharp.Api.Tray;
 
 public partial class AboutDialog : Form
 {
-    public AboutDialog()
+    public AboutDialog(string? endpointUrl = null)
     {
         InitializeComponent();
         LoadIcon();
         LoadVersion();
+        LoadEndpointUrl(endpointUrl);
     }
 
     private void LoadIcon()
@@ -63,6 +64,19 @@ public partial class AboutDialog : Form
         versionLabel.Text = version != null 
             ? $"Version {version.Major}.{version.Minor}.{version.Build}.{version.Revision}"
             : "Version Unknown";
+    }
+    
+    private void LoadEndpointUrl(string? endpointUrl)
+    {
+        if (!string.IsNullOrEmpty(endpointUrl))
+        {
+            urlLabel.Text = $"MCP Endpoint: {endpointUrl}";
+            urlLabel.Visible = true;
+        }
+        else
+        {
+            urlLabel.Visible = false;
+        }
     }
     
     private Icon CreateDialogIcon()

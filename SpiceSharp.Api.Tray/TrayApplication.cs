@@ -348,7 +348,10 @@ public class TrayApplication : ApplicationContext
                         {
                             protocolVersion = _mcpConfig.ProtocolVersion,
                             serverInfo = new { name = _mcpConfig.Name, version = _mcpConfig.Version },
-                            capabilities = new { }
+                            capabilities = new
+                            {
+                                tools = new { }
+                            }
                         };
                     }
                     
@@ -1068,7 +1071,8 @@ public class TrayApplication : ApplicationContext
 
     private void ShowAboutDialog()
     {
-        using var dialog = new AboutDialog();
+        var endpointUrl = GetEndpointUrl();
+        using var dialog = new AboutDialog(endpointUrl);
         dialog.ShowDialog();
     }
 

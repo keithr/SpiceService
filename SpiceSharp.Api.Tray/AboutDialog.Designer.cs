@@ -11,6 +11,7 @@ partial class AboutDialog
     private PictureBox iconPictureBox;
     private Label titleLabel;
     private Label versionLabel;
+    private Label urlLabel;
     private Panel contentPanel;
     private Panel scrollPanel;
     private Label descLabel;
@@ -34,6 +35,7 @@ partial class AboutDialog
         this.iconPictureBox = new PictureBox();
         this.titleLabel = new Label();
         this.versionLabel = new Label();
+        this.urlLabel = new Label();
         this.contentPanel = new Panel();
         this.scrollPanel = new Panel();
         this.descLabel = new Label();
@@ -57,7 +59,7 @@ partial class AboutDialog
         this.headerPanel.Location = new System.Drawing.Point(0, 0);
         this.headerPanel.Name = "headerPanel";
         this.headerPanel.Padding = new System.Windows.Forms.Padding(25, 20, 25, 15);
-        this.headerPanel.Size = new System.Drawing.Size(600, 130);
+        this.headerPanel.Size = new System.Drawing.Size(600, 150);
         this.headerPanel.TabIndex = 0;
         // 
         // headerLayout
@@ -71,9 +73,11 @@ partial class AboutDialog
         this.headerLayout.Controls.Add(this.iconPictureBox, 0, 0);
         this.headerLayout.Controls.Add(this.titleLabel, 1, 0);
         this.headerLayout.Controls.Add(this.versionLabel, 1, 1);
+        this.headerLayout.Controls.Add(this.urlLabel, 1, 2);
         this.headerLayout.Location = new System.Drawing.Point(25, 20);
         this.headerLayout.Name = "headerLayout";
-        this.headerLayout.RowCount = 2;
+        this.headerLayout.RowCount = 3;
+        this.headerLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.AutoSize));
         this.headerLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.AutoSize));
         this.headerLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.AutoSize));
         this.headerLayout.Size = new System.Drawing.Size(550, 95);
@@ -87,7 +91,7 @@ partial class AboutDialog
         this.iconPictureBox.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
         this.iconPictureBox.TabIndex = 0;
         this.iconPictureBox.TabStop = false;
-        this.headerLayout.SetRowSpan(this.iconPictureBox, 2);
+        this.headerLayout.SetRowSpan(this.iconPictureBox, 3);
         // 
         // titleLabel
         // 
@@ -119,6 +123,22 @@ partial class AboutDialog
         this.versionLabel.Text = "Version";
         this.versionLabel.TextAlign = System.Drawing.ContentAlignment.TopLeft;
         // 
+        // urlLabel
+        // 
+        this.urlLabel.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+        this.urlLabel.AutoSize = false;
+        this.urlLabel.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
+        this.urlLabel.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(180)))), ((int)(((byte)(180)))), ((int)(((byte)(180)))));
+        this.urlLabel.Location = new System.Drawing.Point(93, 73);
+        this.urlLabel.Margin = new System.Windows.Forms.Padding(15, 0, 0, 0);
+        this.urlLabel.Name = "urlLabel";
+        this.urlLabel.Size = new System.Drawing.Size(457, 20);
+        this.urlLabel.TabIndex = 3;
+        this.urlLabel.Text = "MCP Endpoint:";
+        this.urlLabel.TextAlign = System.Drawing.ContentAlignment.TopLeft;
+        this.urlLabel.Visible = false;
+        // 
         // contentPanel
         // 
         this.contentPanel.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
@@ -127,10 +147,10 @@ partial class AboutDialog
         this.contentPanel.BackColor = System.Drawing.Color.White;
         this.contentPanel.Controls.Add(this.scrollPanel);
         this.contentPanel.Controls.Add(this.buttonPanel);
-        this.contentPanel.Location = new System.Drawing.Point(0, 130);
+        this.contentPanel.Location = new System.Drawing.Point(0, 150);
         this.contentPanel.Name = "contentPanel";
         this.contentPanel.Padding = new System.Windows.Forms.Padding(30, 25, 30, 20);
-        this.contentPanel.Size = new System.Drawing.Size(600, 370);
+        this.contentPanel.Size = new System.Drawing.Size(600, 350);
         this.contentPanel.TabIndex = 1;
         // 
         // scrollPanel
