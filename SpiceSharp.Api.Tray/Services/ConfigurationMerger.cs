@@ -12,7 +12,7 @@ public static class ConfigurationMerger
     /// Append/update SpiceService MCP configuration to existing config
     /// </summary>
     /// <param name="configFilePath">Path to the configuration file</param>
-    /// <param name="mcpEndpointUrl">MCP endpoint URL to configure</param>
+    /// <param name="mcpEndpointUrl">MCP endpoint URL (used for display/info only, not hardcoded - uses auto-discovery)</param>
     /// <param name="proxyExecutablePath">Full path to McpRemote.exe proxy executable</param>
     public static void AppendConfiguration(string configFilePath, string mcpEndpointUrl, string proxyExecutablePath)
     {
@@ -71,7 +71,7 @@ public static class ConfigurationMerger
     /// Overwrite entire configuration file with SpiceService-only config
     /// </summary>
     /// <param name="configFilePath">Path to the configuration file</param>
-    /// <param name="mcpEndpointUrl">MCP endpoint URL to configure</param>
+    /// <param name="mcpEndpointUrl">MCP endpoint URL to configure (used for display/info only, not hardcoded)</param>
     /// <param name="proxyExecutablePath">Full path to McpRemote.exe proxy executable</param>
     public static void OverwriteConfiguration(string configFilePath, string mcpEndpointUrl, string proxyExecutablePath)
     {
@@ -89,7 +89,7 @@ public static class ConfigurationMerger
                 ["spice-simulator"] = new JsonObject
                 {
                     ["command"] = proxyExecutablePath,
-                    ["args"] = new JsonArray(mcpEndpointUrl),
+                    ["args"] = new JsonArray("auto"), // Auto-discover endpoint instead of hardcoding URL
                     ["description"] = "SPICE analog circuit simulator and analysis tools"
                 }
             }
@@ -103,7 +103,7 @@ public static class ConfigurationMerger
     /// <summary>
     /// Generate VS Code configuration JSON (for manual copy-paste)
     /// </summary>
-    /// <param name="mcpEndpointUrl">MCP endpoint URL to configure</param>
+    /// <param name="mcpEndpointUrl">MCP endpoint URL (used for display/info only, not hardcoded - uses auto-discovery)</param>
     /// <param name="proxyExecutablePath">Full path to McpRemote.exe proxy executable</param>
     /// <returns>Formatted JSON string</returns>
     public static string GenerateVSCodeConfig(string mcpEndpointUrl, string proxyExecutablePath)
