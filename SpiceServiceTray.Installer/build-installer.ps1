@@ -149,7 +149,7 @@ if ($LASTEXITCODE -ne 0) {
     
     # Ensure dist directory exists (for Release builds)
     $distDir = if ($Configuration -eq "Release") { 
-        $solutionRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+        $solutionRoot = Split-Path $PSScriptRoot -Parent
         Join-Path $solutionRoot "dist"
     } else { 
         "bin\$Configuration" 
@@ -232,7 +232,7 @@ if ($LASTEXITCODE -ne 0) {
     $locFile = Join-Path $wixPath "WixUI_en-us.wxl"
     $locParam = if (Test-Path $locFile) { "-loc `"$locFile`"" } else { "" }
     $msiOutputPath = if ($Configuration -eq "Release") { 
-        $solutionRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+        $solutionRoot = Split-Path $PSScriptRoot -Parent
         Join-Path (Join-Path $solutionRoot "dist") "SpiceServiceTray.msi"
     } else { 
         "$binDir\SpiceServiceTray.msi" 
@@ -249,7 +249,7 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "`nBuild completed successfully!" -ForegroundColor Green
 # Determine MSI path based on configuration - check both possible locations
 $msiPath = if ($Configuration -eq "Release") { 
-    $solutionRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+    $solutionRoot = Split-Path $PSScriptRoot -Parent
     Join-Path (Join-Path $solutionRoot "dist") "SpiceServiceTray.msi"
 } else { 
     "bin\$Configuration\SpiceServiceTray.msi" 
