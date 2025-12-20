@@ -244,10 +244,16 @@ public class TrayApplication : ApplicationContext
             }
             
             // Set the URL to use the configured port
-            var listenUrl = _networkVisible 
-                ? $"http://*:{_mcpConfig.Port}" 
-                : $"http://127.0.0.1:{_mcpConfig.Port}";
-            builder.WebHost.UseUrls(listenUrl);
+            // When network visible, bind to both IPv4 (0.0.0.0) and IPv6 (*) to ensure localhost connections work
+            if (_networkVisible)
+            {
+                // Bind to both IPv4 and IPv6 explicitly to ensure localhost (127.0.0.1) connections work
+                builder.WebHost.UseUrls($"http://0.0.0.0:{_mcpConfig.Port}", $"http://[::]:{_mcpConfig.Port}");
+            }
+            else
+            {
+                builder.WebHost.UseUrls($"http://127.0.0.1:{_mcpConfig.Port}");
+            }
             
             _webApp = builder.Build();
             
@@ -256,6 +262,50 @@ public class TrayApplication : ApplicationContext
             
             // Configure middleware
             _webApp.UseCors("MCPPolicy");
+            
+            // Enable WebSockets
+            _webApp.UseWebSockets();
+            
+            // Map WebSocket endpoint for VS Code MCP
+            _webApp.Use(async (HttpContext context, RequestDelegate next) =>
+            {
+                // Check if this is a WebSocket upgrade request to /mcp
+                if (context.Request.Path == "/mcp" || context.Request.Path == "/mcp/")
+                {
+                    if (context.WebSockets.IsWebSocketRequest)
+                    {
+                        _logBuffer.Add(Services.LogLevel.Information, $"WebSocket upgrade request received for {context.Request.Path} from {context.Connection.RemoteIpAddress}:{context.Connection.RemotePort}");
+                        _logBuffer.Add(Services.LogLevel.Debug, $"WebSocket headers: {string.Join(", ", context.Request.Headers.Where(h => h.Key.StartsWith("Sec-WebSocket", StringComparison.OrdinalIgnoreCase) || h.Key.Equals("Upgrade", StringComparison.OrdinalIgnoreCase) || h.Key.Equals("Connection", StringComparison.OrdinalIgnoreCase)).Select(h => $"{h.Key}={string.Join(";", h.Value)}"))}");
+                        
+                        // Accept WebSocket connection (no subprotocol required for MCP)
+                        var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+                        _logBuffer.Add(Services.LogLevel.Information, $"WebSocket connection accepted for VS Code MCP");
+                        
+                        var handler = new SpiceSharp.Api.Web.WebSocket.WebSocketMcpHandler(
+                            webSocket, 
+                            _mcpService, 
+                            _mcpConfig);
+                        await handler.HandleAsync();
+                        return; // Don't call next() - we've handled the request
+                    }
+                    else if (context.Request.Method == "GET")
+                    {
+                        // Handle HTTP GET requests to /mcp (some clients check this first)
+                        _logBuffer.Add(Services.LogLevel.Information, $"HTTP GET request to {context.Request.Path} from {context.Connection.RemoteIpAddress}:{context.Connection.RemotePort}");
+                        context.Response.StatusCode = 426; // Upgrade Required
+                        context.Response.Headers.Add("Upgrade", "websocket");
+                        context.Response.Headers.Add("Connection", "Upgrade");
+                        await context.Response.WriteAsync("WebSocket connection required. Use ws:// protocol.");
+                        return; // Don't call next() - we've handled the request
+                    }
+                    else
+                    {
+                        // Log if it's a request to /mcp but not a WebSocket upgrade or GET
+                        _logBuffer.Add(Services.LogLevel.Debug, $"HTTP request to {context.Request.Path} (not WebSocket): Method={context.Request.Method}, Headers={string.Join(", ", context.Request.Headers.Select(h => $"{h.Key}: {string.Join("; ", h.Value)}"))}");
+                    }
+                }
+                await next(context);
+            });
             
             // Map discovery endpoint (for McpRemote.exe to find current MCP endpoint)
             _webApp.MapGet("/discovery", async (HttpContext context) =>
@@ -1204,6 +1254,15 @@ public class TrayApplication : ApplicationContext
     }
     
     /// <summary>
+    /// Get the localhost MCP endpoint URL (for local IDE configuration)
+    /// Always returns localhost, regardless of network visibility setting
+    /// </summary>
+    public string GetLocalEndpointUrl()
+    {
+        return $"http://127.0.0.1:{_mcpConfig.Port}/mcp";
+    }
+    
+    /// <summary>
     /// Check if the server is healthy/running
     /// </summary>
     public bool IsServerHealthy()
@@ -1221,7 +1280,7 @@ public class TrayApplication : ApplicationContext
         
         var input = new IDEConfigurationInput
         {
-            McpEndpointUrl = GetEndpointUrl(),
+            McpEndpointUrl = GetLocalEndpointUrl(), // Always use localhost for local IDE configuration
             ProxyExecutablePath = proxyPath,
             IsServerRunning = IsServerHealthy()
         };

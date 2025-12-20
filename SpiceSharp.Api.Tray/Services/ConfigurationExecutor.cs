@@ -23,19 +23,11 @@ public static class ConfigurationExecutor
             ConfiguredIDEs = new List<string>(),
             BackupPaths = new List<string>(),
             Errors = new List<string>(),
-            VSCodeConfigJson = null
+            VSCodeConfigJson = null // No longer used - VS Code is auto-configured
         };
         
-        // Check if VS Code is selected (for manual setup)
-        var vsCodeSelected = selectedIDEs.FirstOrDefault(i => 
-            i.IsSelected && i.Name == "VS Code" && i.RequiresManualSetup);
-        
-        if (vsCodeSelected != null)
-        {
-            result.VSCodeConfigJson = ConfigurationMerger.GenerateVSCodeConfig(mcpEndpointUrl, proxyExecutablePath);
-        }
-        
-        foreach (var ide in selectedIDEs.Where(i => i.IsSelected && !i.RequiresManualSetup))
+        // Configure all selected IDEs (including VS Code - no longer requires manual setup)
+        foreach (var ide in selectedIDEs.Where(i => i.IsSelected))
         {
             try
             {
@@ -57,13 +49,31 @@ public static class ConfigurationExecutor
                 }
                 
                 // 3. Apply configuration
-                if (appendMode)
+                // VS Code uses mcp.json with "mcpServers" format (supports stdio transport)
+                // Use stdio transport with McpRemote.exe proxy (more reliable than WebSocket)
+                if (ide.Name == "VS Code")
                 {
-                    ConfigurationMerger.AppendConfiguration(ide.ConfigFilePath, mcpEndpointUrl, proxyExecutablePath);
+                    // Use VS Code-specific methods that work with mcp.json format
+                    if (appendMode)
+                    {
+                        ConfigurationMerger.AppendVSCodeConfiguration(ide.ConfigFilePath, mcpEndpointUrl, proxyExecutablePath);
+                    }
+                    else
+                    {
+                        ConfigurationMerger.OverwriteVSCodeConfiguration(ide.ConfigFilePath, mcpEndpointUrl, proxyExecutablePath);
+                    }
                 }
                 else
                 {
-                    ConfigurationMerger.OverwriteConfiguration(ide.ConfigFilePath, mcpEndpointUrl, proxyExecutablePath);
+                    // Use standard methods for other IDEs
+                    if (appendMode)
+                    {
+                        ConfigurationMerger.AppendConfiguration(ide.ConfigFilePath, mcpEndpointUrl, proxyExecutablePath);
+                    }
+                    else
+                    {
+                        ConfigurationMerger.OverwriteConfiguration(ide.ConfigFilePath, mcpEndpointUrl, proxyExecutablePath);
+                    }
                 }
                 
                 result.ConfiguredIDEs.Add(ide.Name);

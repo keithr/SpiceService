@@ -101,11 +101,121 @@ public static class ConfigurationMerger
     }
     
     /// <summary>
-    /// Generate VS Code configuration JSON (for manual copy-paste)
+    /// Append/update VS Code MCP configuration to mcp.json using stdio transport
+    /// 
+    /// VS Code mcp.json format uses "servers" with stdio transport:
+    /// - File: mcp.json (NOT settings.json)
+    /// - Format: {"servers": {"spice-simulator": {"type": "stdio", "command": "...", "args": [...]}}}
+    /// - Transport: stdio command (more reliable than WebSocket for VS Code)
+    /// </summary>
+    /// <param name="mcpJsonPath">Path to VS Code mcp.json</param>
+    /// <param name="mcpEndpointUrl">MCP endpoint URL (for display/info only, uses auto-discovery)</param>
+    /// <param name="proxyExecutablePath">Full path to McpRemote.exe proxy executable</param>
+    public static void AppendVSCodeConfiguration(string mcpJsonPath, string mcpEndpointUrl, string proxyExecutablePath)
+    {
+        JsonObject config;
+        
+        // 1. Read existing config (or create new)
+        if (File.Exists(mcpJsonPath))
+        {
+            try
+            {
+                var json = File.ReadAllText(mcpJsonPath);
+                var parsed = JsonNode.Parse(json);
+                config = parsed?.AsObject() ?? new JsonObject();
+            }
+            catch (JsonException)
+            {
+                // Invalid JSON - create new config
+                config = new JsonObject();
+            }
+        }
+        else
+        {
+            // Create directory if needed
+            var dir = Path.GetDirectoryName(mcpJsonPath);
+            if (!string.IsNullOrEmpty(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+            
+            config = new JsonObject();
+        }
+        
+        // 2. Ensure "servers" object exists (VS Code MCP extension uses "servers" format)
+        if (!config.ContainsKey("servers"))
+        {
+            config["servers"] = new JsonObject();
+        }
+        
+        // 3. Add/update spice-simulator entry with stdio command
+        var servers = config["servers"]!.AsObject();
+        servers["spice-simulator"] = new JsonObject
+        {
+            ["type"] = "stdio", // VS Code MCP extension requires "type": "stdio"
+            ["command"] = proxyExecutablePath,
+            ["args"] = new JsonArray("auto"), // Auto-discover endpoint instead of hardcoding URL
+            ["description"] = "SPICE analog circuit simulator and analysis tools"
+        };
+        
+        // 4. Write back with formatting
+        var options = new JsonSerializerOptions 
+        { 
+            WriteIndented = true,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        };
+        var jsonText = JsonSerializer.Serialize(config, options);
+        File.WriteAllText(mcpJsonPath, jsonText);
+    }
+    
+    /// <summary>
+    /// Overwrite VS Code mcp.json with SpiceService-only MCP configuration using stdio transport
+    /// 
+    /// VS Code mcp.json format supports stdio transport with "mcpServers" format
+    /// </summary>
+    /// <param name="mcpJsonPath">Path to VS Code mcp.json</param>
+    /// <param name="mcpEndpointUrl">MCP endpoint URL (for display/info only, uses auto-discovery)</param>
+    /// <param name="proxyExecutablePath">Full path to McpRemote.exe proxy executable</param>
+    public static void OverwriteVSCodeConfiguration(string mcpJsonPath, string mcpEndpointUrl, string proxyExecutablePath)
+    {
+        // Create directory if needed
+        var dir = Path.GetDirectoryName(mcpJsonPath);
+        if (!string.IsNullOrEmpty(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+        
+        // VS Code uses "servers" format with stdio transport
+        var config = new JsonObject
+        {
+            ["servers"] = new JsonObject
+            {
+                ["spice-simulator"] = new JsonObject
+                {
+                    ["type"] = "stdio", // VS Code MCP extension requires "type": "stdio"
+                    ["command"] = proxyExecutablePath,
+                    ["args"] = new JsonArray("auto"), // Auto-discover endpoint instead of hardcoding URL
+                    ["description"] = "SPICE analog circuit simulator and analysis tools"
+                }
+            }
+        };
+        
+        var options = new JsonSerializerOptions 
+        { 
+            WriteIndented = true,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        };
+        var jsonText = JsonSerializer.Serialize(config, options);
+        File.WriteAllText(mcpJsonPath, jsonText);
+    }
+    
+    /// <summary>
+    /// Generate VS Code configuration JSON (for manual copy-paste - deprecated, use AppendVSCodeConfiguration instead)
     /// </summary>
     /// <param name="mcpEndpointUrl">MCP endpoint URL (used for display/info only, not hardcoded - uses auto-discovery)</param>
     /// <param name="proxyExecutablePath">Full path to McpRemote.exe proxy executable</param>
     /// <returns>Formatted JSON string</returns>
+    [Obsolete("Use AppendVSCodeConfiguration for automatic configuration instead")]
     public static string GenerateVSCodeConfig(string mcpEndpointUrl, string proxyExecutablePath)
     {
         var config = new JsonObject
