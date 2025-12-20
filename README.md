@@ -24,6 +24,7 @@ Projects
 - `SpiceSharp.Api.Plot.Tests`: Unit tests for the plotting library
 - `SpiceSharp.Api.Web`: MCP (Model Context Protocol) server for circuit simulation
 - `SpiceSharp.Api.Tray`: Windows Forms tray application for managing the MCP service
+- `McpRemote`: Stdio ↔ HTTP proxy for IDE integration (enables IDEs to connect via stdio MCP protocol)
 - `SpiceServiceTray.Installer`: WiX installer project for the tray application
 - `SimpleLEDTest`: Sample console application demonstrating basic usage (not in solution)
 - `TestWaveformApi`: Test application for waveform functionality (not in solution)
@@ -121,6 +122,7 @@ A Windows Installer (MSI) package is available for easy installation:
 - **MCP Server Management**: Automatically starts and manages the MCP server
 - **Auto-Start on Login**: Optional automatic startup when Windows starts
 - **Network Visibility Control**: Toggle between localhost-only and network-accessible modes
+- **IDE Integration Configuration**: Dialog-based configuration for AI-powered IDEs (Claude Desktop, Cursor AI, VS Code, Windsurf)
 - **Circuit Management**: View and manage circuits through a GUI dialog
 - **Circuit Export**: Export circuits as SPICE netlists
 - **Log Viewer**: Built-in log viewer for debugging and monitoring
@@ -134,6 +136,7 @@ Right-click the tray icon to access:
 - **Status**: Current server status (Running/Error)
 - **Auto-start on Login**: Toggle automatic startup
 - **Network Accessible**: Toggle network visibility (requires restart)
+- **Configure IDE Integration...**: Configure AI-powered IDEs to connect to SpiceService
 - **List Circuits...**: View and manage all circuits
 - **Export Circuit...**: Export circuit as SPICE netlist
 - **View Logs...**: Open log viewer window
@@ -173,6 +176,102 @@ The tray application includes a UDP-based discovery service that broadcasts serv
 - **Protocol**: JSON-based announcement messages
 
 See `mcp_discovery_spec.md` for detailed specification.
+
+IDE Integration
+---------------
+
+SpiceService includes built-in support for configuring AI-powered IDEs to connect via the MCP (Model Context Protocol) protocol. The tray application provides a dialog-based configuration system that automatically detects installed IDEs and configures them to connect to SpiceService.
+
+### Supported IDEs
+
+- **Claude Desktop**: Automatic configuration via `%APPDATA%\Claude\mcp.json`
+- **Cursor AI**: Automatic configuration via `%USERPROFILE%\.cursor\mcp.json`
+- **VS Code**: Manual setup with copy-paste JSON configuration (workspace-level)
+- **Windsurf**: Automatic configuration via `%USERPROFILE%\.codeium\windsurf\mcp.json`
+
+### Configuration via Tray Application
+
+1. **Open Configuration Dialog**: Right-click the tray icon → **Configure IDE Integration...**
+2. **Select IDEs**: Check the IDEs you want to configure
+3. **Choose Mode**: 
+   - **Append** (recommended): Adds SpiceService to existing MCP configuration
+   - **Overwrite**: Replaces entire MCP configuration file
+4. **Backup Option**: Optionally create timestamped backups before modifying files
+5. **Apply**: Click **Apply** to configure selected IDEs
+
+### McpRemote.exe Proxy
+
+SpiceService uses `McpRemote.exe`, a lightweight stdio ↔ HTTP proxy that enables IDEs using stdio-based MCP protocol to connect to SpiceService's HTTP-based MCP server. This eliminates the need for Node.js or other external dependencies.
+
+**Features:**
+- **Auto-Discovery**: Automatically finds the current SpiceService endpoint (ports 8081-8090)
+- **Stdio Protocol**: Bridges stdio-based MCP clients to HTTP-based MCP servers
+- **JSON-RPC Compliant**: Properly handles notifications and request/response patterns
+- **Colocated**: Automatically copied to tray app output directory during build
+
+**Usage:**
+- **Auto-discovery mode**: `McpRemote.exe auto` or `McpRemote.exe --discover`
+- **Explicit URL**: `McpRemote.exe http://localhost:8081/mcp`
+
+The proxy is automatically configured by the IDE Integration dialog and is included in the MSI installer.
+
+### Manual Configuration
+
+If you prefer to configure IDEs manually, use the following configuration:
+
+**Claude Desktop** (`%APPDATA%\Claude\mcp.json`):
+```json
+{
+  "mcpServers": {
+    "spice-simulator": {
+      "command": "C:\\Users\\YourName\\AppData\\Local\\SpiceService\\Tray\\McpRemote.exe",
+      "args": ["auto"]
+    }
+  }
+}
+```
+
+**Cursor AI** (`%USERPROFILE%\.cursor\mcp.json`):
+```json
+{
+  "mcpServers": {
+    "spice-simulator": {
+      "command": "C:\\Users\\YourName\\AppData\\Local\\SpiceService\\Tray\\McpRemote.exe",
+      "args": ["auto"]
+    }
+  }
+}
+```
+
+**VS Code** (workspace `.vscode/mcp.json`):
+```json
+{
+  "mcpServers": {
+    "spice-simulator": {
+      "command": "C:\\Users\\YourName\\AppData\\Local\\SpiceService\\Tray\\McpRemote.exe",
+      "args": ["auto"]
+    }
+  }
+}
+```
+
+**Windsurf** (`%USERPROFILE%\.codeium\windsurf\mcp.json`):
+```json
+{
+  "mcpServers": {
+    "spice-simulator": {
+      "command": "C:\\Users\\YourName\\AppData\\Local\\SpiceService\\Tray\\McpRemote.exe",
+      "args": ["auto"]
+    }
+  }
+}
+```
+
+**Note**: Replace `C:\\Users\\YourName\\AppData\\Local\\SpiceService\\Tray\\McpRemote.exe` with the actual installation path. The IDE Integration dialog automatically uses the correct path.
+
+### Development Builds
+
+When running from source, `McpRemote.exe` is automatically copied to the tray app's output directory (`SpiceSharp.Api.Tray\bin\Debug\net8.0-windows\` or `Release\net8.0-windows\`) during build, ensuring it's always colocated with the tray app executable.
 
 Run sample
 ----------
@@ -739,6 +838,17 @@ Development
   - `CircuitsDialog.cs` - Circuit management UI
   - `LogDialog.cs` - Log viewer
   - `ExportCircuitDialog.cs` - Circuit export UI
+  - `IDEConfigurationDialog.cs` - IDE integration configuration dialog
+  - `IDEConfigurationSuccessDialog.cs` - Configuration success feedback dialog
+  - `Services/IDEDetector.cs` - IDE detection service
+  - `Services/ConfigurationMerger.cs` - IDE configuration file management
+  - `Services/ConfigurationExecutor.cs` - Configuration execution orchestrator
+  - `Services/ConfigurationBackup.cs` - Configuration backup service
+  
+- **McpRemote**: `McpRemote/` - Stdio ↔ HTTP proxy for IDE integration
+  - `Program.cs` - Main proxy implementation (stdio ↔ HTTP bidirectional proxy)
+  - Auto-discovery support for finding SpiceService endpoint
+  - JSON-RPC 2.0 compliant notification handling
   
 - **Installer**: `SpiceServiceTray.Installer/` - WiX-based MSI installer
   - `Product.wxs` - Installer definition
@@ -768,7 +878,15 @@ SpiceService/
 │   ├── AboutDialog.cs             # About dialog
 │   ├── CircuitsDialog.cs         # Circuit management UI
 │   ├── LogDialog.cs               # Log viewer
+│   ├── IDEConfigurationDialog.cs   # IDE integration configuration
+│   ├── IDEConfigurationSuccessDialog.cs  # Configuration feedback
 │   └── Services/                  # Tray-specific services
+│       ├── IDEDetector.cs         # IDE detection
+│       ├── ConfigurationMerger.cs # Configuration file management
+│       ├── ConfigurationExecutor.cs # Configuration orchestration
+│       └── ConfigurationBackup.cs  # Backup service
+├── McpRemote/                     # Stdio ↔ HTTP proxy
+│   └── Program.cs                 # Proxy implementation
 ├── SpiceServiceTray.Installer/    # WiX installer
 │   ├── Product.wxs                # Installer definition
 │   ├── build-installer.ps1        # Build script
@@ -819,6 +937,14 @@ Binaries are generated in standard .NET output directories:
 - Single instance enforcement (only one instance can run)
 - Check system tray for application icon if it doesn't appear
 - View logs from tray menu if issues occur
+- `McpRemote.exe` is automatically colocated with tray app during build (for development)
+
+**IDE Integration:**
+- Ensure SpiceService tray app is running before configuring IDEs
+- Restart IDE after configuration to pick up changes
+- VS Code requires workspace-level configuration (not global)
+- `McpRemote.exe` uses auto-discovery by default - no need to hardcode URLs
+- If auto-discovery fails, use explicit URL: `McpRemote.exe http://localhost:8081/mcp`
 
 **Library Search:**
 - Libraries are automatically indexed on startup
@@ -832,6 +958,8 @@ Additional Resources
 ### Documentation Files
 
 - **`mcp_discovery_spec.md`**: Complete specification for MCP server discovery protocol
+- **`IDE-Integration-Configuration-Spec.md`**: Specification for IDE integration configuration feature
+- **`McpRemote-Architecture-Summary.md`**: Architecture overview of the McpRemote stdio ↔ HTTP proxy
 - **`SpiceServiceTray.Installer/BUILD_INSTRUCTIONS.md`**: Detailed MSI installer build instructions
 - **`netlistsvg/AI_DOCUMENTATION.md`**: NetlistSvg integration documentation
 
