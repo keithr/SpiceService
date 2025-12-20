@@ -62,9 +62,12 @@ class Program
     
     /// <summary>
     /// Auto-discover SpiceService MCP endpoint by trying common ports
+    /// If multiple instances are found, selects the most recent one (highest process ID)
     /// </summary>
     static async Task<string?> DiscoverEndpointAsync()
     {
+        var discoveredInstances = new List<(string endpoint, int processId, DateTime startTime)>();
+        
         // Try ports 8081-8090 (common range for SpiceService)
         for (int port = 8081; port <= 8090; port++)
         {
@@ -83,7 +86,28 @@ class Program
                     var doc = JsonDocument.Parse(json);
                     if (doc.RootElement.TryGetProperty("mcpEndpoint", out var endpointElement))
                     {
-                        return endpointElement.GetString();
+                        var endpoint = endpointElement.GetString();
+                        if (endpoint != null)
+                        {
+                            // Extract instance identification if available
+                            int processId = 0;
+                            DateTime startTime = DateTime.MinValue;
+                            
+                            if (doc.RootElement.TryGetProperty("processId", out var processIdElement))
+                            {
+                                processId = processIdElement.GetInt32();
+                            }
+                            
+                            if (doc.RootElement.TryGetProperty("startTime", out var startTimeElement))
+                            {
+                                if (DateTime.TryParse(startTimeElement.GetString(), out var parsedTime))
+                                {
+                                    startTime = parsedTime;
+                                }
+                            }
+                            
+                            discoveredInstances.Add((endpoint, processId, startTime));
+                        }
                     }
                 }
             }
@@ -94,7 +118,24 @@ class Program
             }
         }
         
-        return null;
+        if (discoveredInstances.Count == 0)
+        {
+            return null;
+        }
+        
+        // If multiple instances found, prefer the one with highest process ID (typically most recent)
+        // Fallback to most recent start time if process IDs are equal
+        var selected = discoveredInstances
+            .OrderByDescending(i => i.processId)
+            .ThenByDescending(i => i.startTime)
+            .First();
+        
+        if (discoveredInstances.Count > 1)
+        {
+            await Console.Error.WriteLineAsync($"McpRemote: Found {discoveredInstances.Count} SpiceService instances, selected process {selected.processId} on port {new Uri(selected.endpoint).Port}");
+        }
+        
+        return selected.endpoint;
     }
 
     static async Task RunProxyAsync(string httpEndpoint)

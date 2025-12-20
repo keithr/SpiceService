@@ -265,12 +265,18 @@ public class TrayApplication : ApplicationContext
                     : "127.0.0.1";
                 var endpointUrl = $"http://{host}:{_mcpConfig.Port}/mcp";
                 
+                // Include instance identification to help auto-discovery select the correct instance
+                // ProcessId helps identify which instance this is (higher = more recent typically)
+                // StartTime helps identify when this instance started (more recent = preferred)
+                var process = System.Diagnostics.Process.GetCurrentProcess();
                 await context.Response.WriteAsJsonAsync(new
                 {
                     mcpEndpoint = endpointUrl,
                     port = _mcpConfig.Port,
                     host = host,
-                    networkVisible = _networkVisible
+                    networkVisible = _networkVisible,
+                    processId = Environment.ProcessId,
+                    startTime = process.StartTime.ToUniversalTime().ToString("O") // ISO 8601 format for comparison
                 });
             });
             
