@@ -75,7 +75,7 @@
       <ComponentGroupRef Id="ProductComponents" />
       <ComponentGroupRef Id="HarvestedFiles" />
       <ComponentGroupRef Id="LibraryComponents" />
-      <!-- HarvestedLibraries is conditionally included if the file exists -->
+      <ComponentGroupRef Id="HarvestedLibraries" />
       <ComponentRef Id="ApplicationShortcut" />
       <ComponentRef Id="DesktopShortcut" />
       <ComponentRef Id="StartupShortcut" />

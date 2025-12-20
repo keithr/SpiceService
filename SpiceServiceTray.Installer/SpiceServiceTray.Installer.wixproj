@@ -42,7 +42,7 @@
     <TrayAppSourceDir>$(SolutionDir)SpiceSharp.Api.Tray\bin\$(Configuration)\net8.0-windows</TrayAppSourceDir>
     <McpRemoteSourceDir>$(SolutionDir)McpRemote\bin\$(Configuration)\net8.0\win-x64\publish</McpRemoteSourceDir>
     <SolutionDir Condition="'$(SolutionDir)' == ''">$(MSBuildProjectDirectory)\..\..\</SolutionDir>
-    <LibrariesSourceDir>$(SolutionDir)spiceservice\libraries</LibrariesSourceDir>
+    <LibrariesSourceDir>$(SolutionDir)libraries</LibrariesSourceDir>
     <!-- Calculate build number (days since 2024-01-01) -->
     <BuildNumber>$([System.DateTime]::Now.Subtract($([System.DateTime]::Parse("2024-01-01"))).TotalDays.ToString("0"))</BuildNumber>
   </PropertyGroup>
