@@ -22,7 +22,6 @@ builder.Services.AddCors(options =>
 
 // Register SpiceSharp services as singletons
 builder.Services.AddSingleton<ICircuitManager, CircuitManager>();
-builder.Services.AddSingleton<IComponentService, ComponentService>();
 builder.Services.AddSingleton<IModelService, ModelService>();
 builder.Services.AddSingleton<IOperatingPointService, OperatingPointService>();
 builder.Services.AddSingleton<IDCAnalysisService, DCAnalysisService>();
@@ -88,12 +87,90 @@ else
     }
 }
 
+// Configure library paths with priority order:
+// 1. User libraries directory (Documents\SpiceService\libraries) - highest priority
+// 2. Installed libraries (next to executable in libraries subdirectory)
+// 3. Development libraries (in source directory - for development builds)
+var libraryPaths = new List<string>();
+
+// 1. User libraries directory (Documents\SpiceService\libraries)
+var userLibPath = Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+    "SpiceService", "libraries");
+if (Directory.Exists(userLibPath))
+{
+    libraryPaths.Add(userLibPath);
+}
+
+// 2. Installed libraries (next to executable in libraries subdirectory)
+var installedLibPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "libraries");
+if (Directory.Exists(installedLibPath))
+{
+    libraryPaths.Add(installedLibPath);
+}
+
+// 3. Development libraries (in source directory - for development builds)
+// Try multiple paths relative to executable to find source directory
+var devLibPaths = new[]
+{
+    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "libraries"),
+    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "..", "libraries"),
+    Path.Combine(Directory.GetCurrentDirectory(), "libraries"),
+    Path.Combine(Directory.GetCurrentDirectory(), "..", "libraries"),
+    Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "libraries"),
+};
+
+foreach (var devLibPath in devLibPaths)
+{
+    var fullPath = Path.GetFullPath(devLibPath);
+    if (Directory.Exists(fullPath) && Directory.GetFiles(fullPath, "kicad_*.lib", SearchOption.TopDirectoryOnly).Length > 0)
+    {
+        libraryPaths.Add(fullPath);
+        break; // Only add first valid path found
+    }
+}
+
+if (libraryPaths.Any())
+{
+    mcpConfig.LibraryPaths = libraryPaths;
+    var totalFiles = libraryPaths.Sum(p => Directory.GetFiles(p, "*.lib", SearchOption.AllDirectories).Length);
+    Console.WriteLine($"Library paths configured ({libraryPaths.Count} paths, {totalFiles} .lib files): {string.Join(", ", libraryPaths)}");
+}
+else
+{
+    Console.WriteLine("Warning: No library paths found. Library search will not be available. " +
+                      "Place .lib files in Documents\\SpiceService\\libraries or next to the executable.");
+}
+
 builder.Services.AddSingleton(mcpConfig);
 builder.Services.AddSingleton(discoveryConfig);
 builder.Services.AddSingleton<CircuitResultsCache>();
 
 // Register speaker database service (optional, for speaker search functionality)
 builder.Services.AddSingleton<ISpeakerDatabaseService, SpeakerDatabaseService>();
+
+// Register library service (required for subcircuit support)
+// Create LibraryService with SpeakerDatabaseService dependency if library paths are configured
+builder.Services.AddSingleton<ILibraryService>(sp =>
+{
+    var speakerDb = sp.GetRequiredService<ISpeakerDatabaseService>();
+    var libraryService = new LibraryService(speakerDb);
+    
+    // Index libraries on startup if paths are configured
+    if (mcpConfig.LibraryPaths != null && mcpConfig.LibraryPaths.Any())
+    {
+        libraryService.IndexLibraries(mcpConfig.LibraryPaths);
+    }
+    
+    return libraryService;
+});
+
+// ComponentService needs LibraryService for subcircuit support - register AFTER LibraryService
+builder.Services.AddSingleton<IComponentService>(sp =>
+{
+    var libraryService = sp.GetService<ILibraryService>();
+    return new ComponentService(libraryService);
+});
 
 // Register enclosure design service (optional, for enclosure design calculations)
 builder.Services.AddSingleton<IEnclosureDesignService, EnclosureDesignService>();

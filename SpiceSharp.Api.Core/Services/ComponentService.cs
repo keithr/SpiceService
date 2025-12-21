@@ -330,17 +330,33 @@ public class ComponentService : IComponentService
     private IEntity AddSubcircuitComponent(CircuitModel circuit, ComponentDefinition definition)
     {
         if (string.IsNullOrWhiteSpace(definition.Model))
-            throw new ArgumentException("Subcircuit components require a model (subcircuit name) to be specified.");
+            throw new ArgumentException(
+                $"Subcircuit component '{definition.Name}' requires a model (subcircuit name) to be specified. " +
+                $"Set the 'model' parameter to the name of the subcircuit definition (e.g., from library_search results).");
 
         if (definition.Nodes == null || definition.Nodes.Count == 0)
-            throw new ArgumentException("Subcircuit requires at least one connection node.");
+            throw new ArgumentException(
+                $"Subcircuit component '{definition.Name}' requires at least one connection node. " +
+                $"Specify the 'nodes' array with the connection points for this subcircuit instance.");
 
         var subcircuitName = definition.Model;
 
         // Check if subcircuit definition already exists in circuit
-        var existingDefinition = circuit.InternalCircuit.TryGetEntity(subcircuitName, out var existingEntity) 
-            ? existingEntity 
-            : null;
+        ISubcircuitDefinition? existingDefinition = null;
+        // Try to get existing definition from circuit
+        // Definitions are stored as SubcircuitDefinitionEntity wrappers
+        if (circuit.InternalCircuit.TryGetEntity(subcircuitName, out var existingEntity))
+        {
+            if (existingEntity is SubcircuitDefinitionEntity wrapper)
+            {
+                existingDefinition = wrapper.Definition;
+            }
+            else if (existingEntity is ISubcircuitDefinition existingSubDef)
+            {
+                // Fallback for direct ISubcircuitDefinition (shouldn't happen, but handle it)
+                existingDefinition = existingSubDef;
+            }
+        }
 
         // If definition doesn't exist, try to load from library
         if (existingDefinition == null && _libraryService != null)
@@ -350,28 +366,92 @@ public class ComponentService : IComponentService
             {
                 // Create SpiceSharp subcircuit definition from library definition
                 var subcircuitDef = CreateSpiceSharpSubcircuitDefinition(librarySubcircuit);
-                circuit.InternalCircuit.Add((IEntity) subcircuitDef);
+                
+                // Register the definition with the circuit before creating instances
+                // The definition must be in the circuit for SpiceSharp to find it by name
+                // Use reflection to set the name if it's stored in a private field
+                // SpiceSharp's SubcircuitDefinition needs to be registered with a name
+                // so it can be retrieved via TryGetEntity
+                try
+                {
+                    // Try to set the name using reflection (Name property is read-only)
+                    var nameField = subcircuitDef.GetType().GetField("_name", 
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    if (nameField != null)
+                    {
+                        nameField.SetValue(subcircuitDef, subcircuitName);
+                    }
+                    else
+                    {
+                        // Try property with private setter
+                        var nameProperty = subcircuitDef.GetType().GetProperty("Name",
+                            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                        if (nameProperty?.SetMethod != null)
+                        {
+                            nameProperty.SetValue(subcircuitDef, subcircuitName);
+                        }
+                    }
+                }
+                catch
+                {
+                    // If reflection fails, we'll try adding it anyway
+                    // SpiceSharp might handle it differently
+                }
+                
+                // Register the definition with the circuit
+                // Since SubcircuitDefinition doesn't implement IEntity, we need to create a wrapper
+                // that can be stored in the circuit and retrieved by name
+                // We'll create a simple entity that wraps the definition
+                var definitionWrapper = new SubcircuitDefinitionEntity(subcircuitName, subcircuitDef);
+                circuit.InternalCircuit.Add(definitionWrapper);
+                existingDefinition = subcircuitDef;
             }
             else
             {
                 throw new ArgumentException(
-                    $"Subcircuit definition '{subcircuitName}' not found in library. " +
-                    $"Use library_search to find available subcircuits, or define the subcircuit before instantiating it.");
+                    $"Subcircuit component '{definition.Name}' references definition '{subcircuitName}' which was not found in the library. " +
+                    $"Use library_search to find available subcircuits, or define the subcircuit before instantiating it. " +
+                    $"Component nodes: [{string.Join(", ", definition.Nodes ?? new List<string>())}]");
             }
         }
         else if (existingDefinition == null)
         {
             throw new ArgumentException(
-                $"Subcircuit definition '{subcircuitName}' not found in circuit and library service is not available. " +
-                $"Define the subcircuit before instantiating it, or configure LibraryService.");
+                $"Subcircuit component '{definition.Name}' references definition '{subcircuitName}' which was not found in the circuit, " +
+                $"and library service is not available. Define the subcircuit before instantiating it, or configure LibraryService. " +
+                $"Component nodes: [{string.Join(", ", definition.Nodes ?? new List<string>())}]");
         }
 
         // Now create the subcircuit instance
         // SpiceSharp.Subcircuit constructor: Subcircuit(name, subcircuitDefinitionName, nodes...)
+        if (existingDefinition == null)
+        {
+            throw new ArgumentException(
+                $"Subcircuit component '{definition.Name}' could not be created: definition '{subcircuitName}' was not found after loading from library. " +
+                $"This is an internal error - please report it. Component nodes: [{string.Join(", ", definition.Nodes ?? new List<string>())}]");
+        }
+        
+        // Validate node count matches definition pin count
+        var definitionPinCount = existingDefinition.Pins?.Count ?? 0;
+        var instanceNodeCount = definition.Nodes?.Count ?? 0;
+        if (definitionPinCount != instanceNodeCount)
+        {
+            var componentNodes = definition.Nodes != null ? string.Join(", ", definition.Nodes) : "none";
+            var definitionPins = existingDefinition.Pins != null ? string.Join(", ", existingDefinition.Pins) : "none";
+            throw new ArgumentException(
+                $"Subcircuit component '{definition.Name}' has {instanceNodeCount} node(s), " +
+                $"but definition '{subcircuitName}' expects {definitionPinCount} pin(s). " +
+                $"Component nodes: [{componentNodes}]. " +
+                $"Definition pins: [{definitionPins}]. " +
+                $"Ensure the number of nodes matches the number of pins in the subcircuit definition.");
+        }
+        
+        // definition.Nodes is already validated above, but compiler doesn't know that
+        var nodesArray = definition.Nodes?.ToArray() ?? Array.Empty<string>();
         var subcircuitInstance = new Subcircuit(
             definition.Name,
-            (ISubcircuitDefinition) _libraryService.GetSubcircuitByName(subcircuitName), // This references the definition we just added
-            definition.Nodes.ToArray()
+            existingDefinition, // Use the definition from the circuit
+            nodesArray
         );
 
         // Store the definition for export and metadata tracking
@@ -430,7 +510,8 @@ public class ComponentService : IComponentService
         }
         
         // Create the SpiceSharp SubcircuitDefinition
-        // SpiceSharp.Components.SubcircuitDefinition constructor: SubcircuitDefinition(name, nodes, circuit)
+        // SpiceSharp.Components.SubcircuitDefinition constructor: SubcircuitDefinition(circuit, nodes)
+        // The name is set when the definition is added to the circuit
         var subcircuitDef = new SpiceSharp.Components.SubcircuitDefinition(
             subcircuitCircuit,
             libraryDef.Nodes.ToArray()

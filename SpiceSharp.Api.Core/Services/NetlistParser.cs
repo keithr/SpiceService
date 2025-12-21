@@ -16,15 +16,20 @@ public class NetlistParser : INetlistParser
         RegexOptions.IgnoreCase);
 
     private static readonly Regex CapacitorRegex = new Regex(
-        @"^\s*C(\w+)\s+(\w+)\s+(\w+)\s+([+-]?(?:\d+\.?\d*|\.\d+)(?:[Ee][+-]?\d+)?|[+-]?\d+\.?\d*[munpfaKMGT]?)\s*$",
+        @"^\s*C(\w+)\s+(\w+)\s+(\w+)\s+([+-]?(?:\d+\.?\d*|\.\d+)(?:[Ee][+-]?\d+)?|[+-]?\d+\.?\d*[munpfaKMGT]?[HFVAWOS]?)\s*$",
         RegexOptions.IgnoreCase);
 
     private static readonly Regex InductorRegex = new Regex(
-        @"^\s*L(\w+)\s+(\w+)\s+(\w+)\s+([+-]?(?:\d+\.?\d*|\.\d+)(?:[Ee][+-]?\d+)?|[+-]?\d+\.?\d*[munpfaKMGT]?)\s*$",
+        @"^\s*L(\w+)\s+(\w+)\s+(\w+)\s+([+-]?(?:\d+\.?\d*|\.\d+)(?:[Ee][+-]?\d+)?|[+-]?\d+\.?\d*[munpfaKMGT]?[HFVAWOS]?)\s*$",
         RegexOptions.IgnoreCase);
 
     private static readonly Regex VoltageSourceRegex = new Regex(
         @"^\s*V(\w+)\s+(\w+)\s+(\w+)\s+(?:DC\s+)?([+-]?(?:\d+\.?\d*|\.\d+)(?:[Ee][+-]?\d+)?|[+-]?\d+\.?\d*[munpfaKMGT]?)(?:\s+AC\s+([+-]?(?:\d+\.?\d*|\.\d+)(?:[Ee][+-]?\d+)?|[+-]?\d+\.?\d*[munpfaKMGT]?))?\s*$",
+        RegexOptions.IgnoreCase);
+    
+    // Voltage source with AC specification: V<name> <node1> <node2> AC <value>
+    private static readonly Regex VoltageSourceACRegex = new Regex(
+        @"^\s*V(\w+)\s+(\w+)\s+(\w+)\s+AC\s+([+-]?(?:\d+\.?\d*|\.\d+)(?:[Ee][+-]?\d+)?|[+-]?\d+\.?\d*[munpfaKMGT]?)\s*$",
         RegexOptions.IgnoreCase);
 
     private static readonly Regex CurrentSourceRegex = new Regex(
@@ -47,6 +52,12 @@ public class NetlistParser : INetlistParser
         @"^\s*J(\w+)\s+(\w+)\s+(\w+)\s+(\w+)\s+(\w+)\s*$",
         RegexOptions.IgnoreCase);
 
+    // Subcircuit instantiation: X<name> <node1> <node2> ... <subcircuit_name>
+    // Example: Xtweeter tw_out 0 275_030
+    private static readonly Regex SubcircuitRegex = new Regex(
+        @"^\s*X(\w+)\s+(.+?)\s+(\w+)\s*$",
+        RegexOptions.IgnoreCase);
+
     /// <inheritdoc/>
     public ParsedNetlist ParseNetlist(string netlist)
     {
@@ -57,6 +68,7 @@ public class NetlistParser : INetlistParser
         var lines = netlist.Split('\n');
         var modelLines = new List<string>();
         var inModel = false;
+        var isFirstLine = true; // Track first line for title handling
 
         foreach (var line in lines)
         {
@@ -138,11 +150,45 @@ public class NetlistParser : INetlistParser
                 }
             }
 
-            // Parse component lines
-            var component = ParseComponentLine(trimmed);
-            if (component != null)
+            // Skip directives (they're handled elsewhere)
+            if (trimmed.StartsWith("."))
             {
-                result.Components.Add(component);
+                continue;
+            }
+
+            // Try to parse as component first
+            ComponentDefinition? component = null;
+            try
+            {
+                component = ParseComponentLine(trimmed);
+                if (component != null)
+                {
+                    result.Components.Add(component);
+                    isFirstLine = false;
+                }
+            }
+            catch (ArgumentException)
+            {
+                // Check if line starts with a component prefix - if so, it's an error, not a title
+                var upperTrimmed = trimmed.ToUpperInvariant();
+                var startsWithComponentPrefix = upperTrimmed.Length > 0 && 
+                    (upperTrimmed[0] == 'R' || upperTrimmed[0] == 'C' || upperTrimmed[0] == 'L' ||
+                     upperTrimmed[0] == 'V' || upperTrimmed[0] == 'I' || upperTrimmed[0] == 'D' ||
+                     upperTrimmed[0] == 'Q' || upperTrimmed[0] == 'M' || upperTrimmed[0] == 'J' ||
+                     upperTrimmed[0] == 'X');
+                
+                // If parsing fails and it's the first non-comment line, treat it as a title (SPICE convention)
+                // UNLESS it starts with a component prefix, in which case it's an invalid component format
+                if (isFirstLine && !startsWithComponentPrefix)
+                {
+                    result.Title = trimmed;
+                    isFirstLine = false;
+                }
+                else
+                {
+                    // Not the first line, or starts with component prefix - re-throw the exception
+                    throw;
+                }
             }
         }
 
@@ -192,6 +238,20 @@ public class NetlistParser : INetlistParser
                 ComponentType = "inductor",
                 Nodes = new List<string> { match.Groups[2].Value, match.Groups[3].Value },
                 Value = ParseValue(match.Groups[4].Value)
+            };
+        }
+
+        // Try AC format first (V<name> <node1> <node2> AC <value>)
+        match = VoltageSourceACRegex.Match(line);
+        if (match.Success)
+        {
+            return new ComponentDefinition
+            {
+                Name = "V" + match.Groups[1].Value,
+                ComponentType = "voltage_source",
+                Nodes = new List<string> { match.Groups[2].Value, match.Groups[3].Value },
+                Value = ParseValue(match.Groups[4].Value),
+                Parameters = new Dictionary<string, object> { { "ac", ParseValue(match.Groups[4].Value) } }
             };
         }
 
@@ -278,6 +338,23 @@ public class NetlistParser : INetlistParser
             };
         }
 
+        match = SubcircuitRegex.Match(line);
+        if (match.Success)
+        {
+            // Parse nodes from group 2 (everything between component name and subcircuit name)
+            var nodesText = match.Groups[2].Value.Trim();
+            var nodes = nodesText.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+            var subcircuitName = match.Groups[3].Value;
+
+            return new ComponentDefinition
+            {
+                Name = "X" + match.Groups[1].Value,
+                ComponentType = "subcircuit",
+                Nodes = nodes,
+                Model = subcircuitName
+            };
+        }
+
         // If no match, check if it's a valid directive (like .TITLE, .END) - ignore those
         var trimmed = line.Trim();
         if (trimmed.StartsWith(".") || trimmed == ")" || string.IsNullOrWhiteSpace(trimmed))
@@ -296,7 +373,29 @@ public class NetlistParser : INetlistParser
 
         valueStr = valueStr.Trim();
 
-        // Handle unit suffixes
+        // Strip unit letters (H=henry, F=farad, A=ampere, V=volt, W=watt, O=ohm, S=siemens)
+        // SPICE typically omits these, but some files include them for clarity (e.g., "0.05mH", "0.143682H")
+        // We strip them before parsing engineering notation
+        // Engineering notation letters (m, u, n, p, f, a, k, M, G, T) are handled below
+        if (valueStr.Length > 1)
+        {
+            var lastChar = valueStr[valueStr.Length - 1];
+            // Unit letters that should be stripped (case-insensitive)
+            if ((lastChar == 'H' || lastChar == 'h') || // Henry
+                (lastChar == 'F' || lastChar == 'f') || // Farad
+                (lastChar == 'V' || lastChar == 'v') || // Volt
+                (lastChar == 'W' || lastChar == 'w') || // Watt
+                (lastChar == 'O' || lastChar == 'o') || // Ohm
+                (lastChar == 'S' || lastChar == 's'))   // Siemens
+            {
+                // Strip the unit letter (e.g., "0.05mH" -> "0.05m", "0.143682H" -> "0.143682")
+                valueStr = valueStr.Substring(0, valueStr.Length - 1);
+            }
+            // Note: 'A' and 'a' are ambiguous (could be atto or ampere)
+            // We don't strip them - let engineering notation parsing handle 'a' as atto
+        }
+
+        // Handle unit suffixes (engineering notation)
         var multiplier = 1.0;
         if (valueStr.EndsWith("T", StringComparison.OrdinalIgnoreCase))
         {

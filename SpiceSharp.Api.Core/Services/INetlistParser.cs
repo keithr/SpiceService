@@ -21,6 +21,11 @@ public interface INetlistParser
 public class ParsedNetlist
 {
     /// <summary>
+    /// Title line from the netlist (first non-comment line)
+    /// </summary>
+    public string? Title { get; set; }
+
+    /// <summary>
     /// Parsed component definitions
     /// </summary>
     public List<ComponentDefinition> Components { get; set; } = new();

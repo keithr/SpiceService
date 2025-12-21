@@ -147,4 +147,13 @@ public class LibraryService : ILibraryService
 
         return results;
     }
+
+    /// <inheritdoc/>
+    public SubcircuitDefinition? GetSubcircuitByName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return null;
+
+        return _subcircuitIndex.TryGetValue(name, out var subcircuit) ? subcircuit : null;
+    }
 }

@@ -158,6 +158,7 @@ public class NetlistService : INetlistService
             "mutual_inductance" => FormatMutualInductance(component),
             "voltage_switch" => FormatVoltageSwitch(component),
             "current_switch" => FormatCurrentSwitch(component),
+            "subcircuit" => FormatSubcircuit(component),
             _ => $"* Unknown component type: {component.ComponentType}"
         };
     }
@@ -727,6 +728,24 @@ public class NetlistService : INetlistService
 
         var nodesString = string.Join(" ", component.Nodes);
         return $"{component.Name} {nodesString} I={{{expression}}}";
+    }
+
+    /// <summary>
+    /// Formats a subcircuit instance.
+    /// SPICE syntax: X{name} {node1} {node2} ... {subcircuit_name}
+    /// </summary>
+    private static string FormatSubcircuit(ComponentDefinition component)
+    {
+        if (component.Nodes == null || component.Nodes.Count == 0)
+            return $"* Invalid subcircuit {component.Name}: requires at least one node";
+
+        if (string.IsNullOrWhiteSpace(component.Model))
+            return $"* Invalid subcircuit {component.Name}: requires model (subcircuit name) parameter";
+
+        var nodesString = string.Join(" ", component.Nodes);
+        
+        // SPICE format: X<name> <node1> <node2> ... <subcircuit_name>
+        return $"{component.Name} {nodesString} {component.Model}";
     }
 }
 

@@ -37,7 +37,6 @@ public class TrayApplication : ApplicationContext
         
         // Initialize services directly (in-process)
         _circuitManager = new CircuitManager();
-        var componentService = new ComponentService();
         var modelService = new ModelService();
         var operatingPointService = new OperatingPointService();
         var dcAnalysisService = new DCAnalysisService();
@@ -162,13 +161,16 @@ public class TrayApplication : ApplicationContext
         // Create crossover compatibility service
         var crossoverCompatibilityService = new CrossoverCompatibilityService();
         
-        // Create library service if paths are configured
+        // Create library service if paths are configured (MUST be created before ComponentService)
         ILibraryService? libraryService = null;
         if (_mcpConfig.LibraryPaths != null && _mcpConfig.LibraryPaths.Any())
         {
             libraryService = new LibraryService(speakerDatabaseService);
             libraryService.IndexLibraries(_mcpConfig.LibraryPaths);
         }
+        
+        // Create ComponentService AFTER LibraryService (needs LibraryService for subcircuit support)
+        var componentService = new ComponentService(libraryService);
 
         _mcpService = new MCPService(
             _circuitManager,

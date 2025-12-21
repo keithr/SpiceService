@@ -21,6 +21,11 @@ public class SpeakerSearchResult
     public string? PartNumber { get; set; }
 
     /// <summary>
+    /// Product name
+    /// </summary>
+    public string? ProductName { get; set; }
+
+    /// <summary>
     /// Driver type (e.g., "woofers", "tweeters", "midrange")
     /// </summary>
     public string? Type { get; set; }

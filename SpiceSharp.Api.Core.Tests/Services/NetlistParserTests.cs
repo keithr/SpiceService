@@ -259,4 +259,61 @@ D2 b d DMODEL2
         Assert.True(result.Models.Any(m => m.ModelName == "DMODEL1"));
         Assert.True(result.Models.Any(m => m.ModelName == "DMODEL2"));
     }
+
+    [Fact]
+    public void ParseNetlist_WithSubcircuitInstantiation_ParsesCorrectly()
+    {
+        // Arrange - Test the bug report scenario
+        var netlist = @"
+Xtweeter tw_out 0 275_030
+Xwoofer wf_out 0 297_429
+";
+
+        // Act
+        var result = _parser.ParseNetlist(netlist);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(2, result.Components.Count);
+        
+        var tweeter = result.Components.FirstOrDefault(c => c.Name == "Xtweeter");
+        Assert.NotNull(tweeter);
+        Assert.Equal("subcircuit", tweeter.ComponentType);
+        Assert.Equal(2, tweeter.Nodes.Count);
+        Assert.Contains("tw_out", tweeter.Nodes);
+        Assert.Contains("0", tweeter.Nodes);
+        Assert.Equal("275_030", tweeter.Model);
+
+        var woofer = result.Components.FirstOrDefault(c => c.Name == "Xwoofer");
+        Assert.NotNull(woofer);
+        Assert.Equal("subcircuit", woofer.ComponentType);
+        Assert.Equal(2, woofer.Nodes.Count);
+        Assert.Contains("wf_out", woofer.Nodes);
+        Assert.Contains("0", woofer.Nodes);
+        Assert.Equal("297_429", woofer.Model);
+    }
+
+    [Fact]
+    public void ParseNetlist_WithSubcircuitInstantiationMultipleNodes_ParsesCorrectly()
+    {
+        // Arrange - Test subcircuit with more than 2 nodes
+        var netlist = @"
+Xsub1 node1 node2 node3 SUB_NAME
+";
+
+        // Act
+        var result = _parser.ParseNetlist(netlist);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Single(result.Components);
+        var component = result.Components[0];
+        Assert.Equal("Xsub1", component.Name);
+        Assert.Equal("subcircuit", component.ComponentType);
+        Assert.Equal(3, component.Nodes.Count);
+        Assert.Contains("node1", component.Nodes);
+        Assert.Contains("node2", component.Nodes);
+        Assert.Contains("node3", component.Nodes);
+        Assert.Equal("SUB_NAME", component.Model);
+    }
 }

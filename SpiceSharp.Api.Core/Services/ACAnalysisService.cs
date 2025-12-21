@@ -83,7 +83,9 @@ public class ACAnalysisService : IACAnalysisService
             }
             if (validation.HasWarnings)
             {
-                System.Diagnostics.Debug.WriteLine($"Circuit validation warnings: {string.Join("; ", validation.Warnings)}");
+                var warnings = string.Join("; ", validation.Warnings);
+                System.Diagnostics.Debug.WriteLine($"Circuit validation warnings: {warnings}");
+                // Log warnings but don't fail - SpiceSharp will do the final validation
             }
 
             // SpiceSharp's AC constructor supports frequency sweep configuration using DecadeSweep
@@ -277,6 +279,71 @@ public class ACAnalysisService : IACAnalysisService
             var errorDetails = new System.Text.StringBuilder();
             errorDetails.AppendLine($"Error: {ex.GetType().Name}");
             errorDetails.AppendLine($"Message: {ex.Message}");
+            
+            // Try to extract more details from SpiceSharp's ValidationFailedException
+            if (ex.GetType().Name.Contains("ValidationFailedException", StringComparison.OrdinalIgnoreCase))
+            {
+                errorDetails.AppendLine();
+                errorDetails.AppendLine("SpiceSharp Validation Failed - Common causes:");
+                errorDetails.AppendLine("1. Floating nodes (nodes not connected to any component)");
+                errorDetails.AppendLine("2. Nodes without DC paths to ground (required for AC analysis)");
+                errorDetails.AppendLine("3. Inductor loops without resistance");
+                errorDetails.AppendLine("4. Voltage source loops");
+                errorDetails.AppendLine();
+                errorDetails.AppendLine("Suggested fixes:");
+                errorDetails.AppendLine("- Add large resistors (1e9 to 1e12 ohms) from floating nodes to ground");
+                errorDetails.AppendLine("- Add small series resistors (1e-6 ohms) to inductors in loops");
+                errorDetails.AppendLine("- Ensure all subcircuit internal nodes have DC paths to external pins");
+                errorDetails.AppendLine();
+                
+                try
+                {
+                    // Use reflection to try to get rule violation details
+                    var exType = ex.GetType();
+                    var violationsProp = exType.GetProperty("Violations", 
+                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance |
+                        System.Reflection.BindingFlags.NonPublic);
+                    if (violationsProp != null)
+                    {
+                        var violations = violationsProp.GetValue(ex);
+                        if (violations != null)
+                        {
+                            errorDetails.AppendLine("Rule Violations:");
+                            // Try to enumerate violations if it's a collection
+                            if (violations is System.Collections.IEnumerable violationsEnum && 
+                                violations is not string)
+                            {
+                                foreach (var violation in violationsEnum)
+                                {
+                                    errorDetails.AppendLine($"  - {violation}");
+                                }
+                            }
+                            else
+                            {
+                                errorDetails.AppendLine($"  {violations}");
+                            }
+                        }
+                    }
+                    
+                    // Try to get Rules property
+                    var rulesProp = exType.GetProperty("Rules", 
+                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance |
+                        System.Reflection.BindingFlags.NonPublic);
+                    if (rulesProp != null)
+                    {
+                        var rules = rulesProp.GetValue(ex);
+                        if (rules != null)
+                        {
+                            errorDetails.AppendLine($"Rules: {rules}");
+                        }
+                    }
+                }
+                catch
+                {
+                    // If reflection fails, continue with standard error reporting
+                    errorDetails.AppendLine("(Could not extract detailed violation information)");
+                }
+            }
             
             if (ex.InnerException != null)
             {

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using NetlistSvg;
 using NetlistSvg.Skins;
 using System.Reflection;
+using SpiceSharp.Entities;
 
 namespace SpiceSharp.Api.Web.Services;
 
@@ -129,7 +130,7 @@ public class MCPService
             new MCPToolDefinition
             {
                 Name = "add_component",
-                Description = "Add a component to the active circuit. WORKFLOW: For standard components (LED, diode, transistor, MOSFET, BJT, JFET, etc.), use library_search FIRST to find available models and their parameters before adding components. IMPORTANT: For AC analysis, voltage sources MUST include AC specification via parameters. Use parameters: {\"ac\": 1} or {\"acmag\": 1} to specify AC magnitude (typically 1V for AC analysis). Example: {\"name\": \"V1\", \"component_type\": \"voltage_source\", \"nodes\": [\"input\", \"0\"], \"value\": 1, \"parameters\": {\"ac\": 1}}. POWER SUPPLY NAMING: For power supplies, use standard naming conventions to make schematics clearer: VCC (positive supply, e.g., 5V, 12V), VDD (positive MOSFET supply), VSS (negative/ground), VEE (negative supply). The component name appears on the schematic, so use descriptive names like \"VCC_5V\" or \"VDD_12V\" to show both the label and voltage value. Example: {\"name\": \"VCC_5V\", \"component_type\": \"voltage_source\", \"nodes\": [\"VCC\", \"0\"], \"value\": 5} creates a 5V power supply labeled \"VCC_5V\" on the schematic. For behavioral sources (behavioral_voltage_source, behavioral_current_source): CRITICAL LIMITATION - expressions CANNOT use parameter substitution or variable names. You MUST use literal numeric values only. WRONG: 'V(input)*{gain}' or 'V(vel)*BL/Sd'. CORRECT: 'V(input)*5.1' or 'V(vel)*6.5/0.0046'. WORKAROUND: Pre-calculate parameter relationships (e.g., BL/Sd = 6.5/0.0046 = 1413.04) and either use the literal formula 'V(vel)*6.5/0.0046' (more readable/maintainable) or pre-calculated constant 'V(vel)*1413.04' (slightly faster). Document original parameters in circuit description.",
+                Description = "Add a component to the active circuit. WORKFLOW: For standard components (LED, diode, transistor, MOSFET, BJT, JFET, etc.), use library_search FIRST to find available models and their parameters before adding components. For subcircuits: Use component_type='subcircuit' with the 'model' parameter set to the subcircuit name (e.g., from library_search results). Example: {\"name\": \"Xtweeter\", \"component_type\": \"subcircuit\", \"nodes\": [\"tw_out\", \"0\"], \"model\": \"275_030\"}. The subcircuit definition will be automatically loaded from the library if available. IMPORTANT: For AC analysis, voltage sources MUST include AC specification via parameters. Use parameters: {\"ac\": 1} or {\"acmag\": 1} to specify AC magnitude (typically 1V for AC analysis). Example: {\"name\": \"V1\", \"component_type\": \"voltage_source\", \"nodes\": [\"input\", \"0\"], \"value\": 1, \"parameters\": {\"ac\": 1}}. POWER SUPPLY NAMING: For power supplies, use standard naming conventions to make schematics clearer: VCC (positive supply, e.g., 5V, 12V), VDD (positive MOSFET supply), VSS (negative/ground), VEE (negative supply). The component name appears on the schematic, so use descriptive names like \"VCC_5V\" or \"VDD_12V\" to show both the label and voltage value. Example: {\"name\": \"VCC_5V\", \"component_type\": \"voltage_source\", \"nodes\": [\"VCC\", \"0\"], \"value\": 5} creates a 5V power supply labeled \"VCC_5V\" on the schematic. For behavioral sources (behavioral_voltage_source, behavioral_current_source): CRITICAL LIMITATION - expressions CANNOT use parameter substitution or variable names. You MUST use literal numeric values only. WRONG: 'V(input)*{gain}' or 'V(vel)*BL/Sd'. CORRECT: 'V(input)*5.1' or 'V(vel)*6.5/0.0046'. WORKAROUND: Pre-calculate parameter relationships (e.g., BL/Sd = 6.5/0.0046 = 1413.04) and either use the literal formula 'V(vel)*6.5/0.0046' (more readable/maintainable) or pre-calculated constant 'V(vel)*1413.04' (slightly faster). Document original parameters in circuit description.",
                 InputSchema = new
                 {
                     type = "object",
@@ -137,10 +138,10 @@ public class MCPService
                     {
                         circuit_id = new { type = "string", description = "Circuit ID (optional, uses active if omitted)" },
                         name = new { type = "string", description = "Component name (e.g., R1, C1, V1). For power supplies, use standard conventions: VCC_5V, VDD_12V, VSS, VEE for clarity. The name appears on the schematic, so include voltage value in the name (e.g., \"VCC_5V\") to make it clear what the power supply voltage is." },
-                        component_type = new { type = "string", @enum = new[] { "resistor", "capacitor", "inductor", "diode", "voltage_source", "current_source", "bjt_npn", "bjt_pnp", "mosfet_n", "mosfet_p", "jfet_n", "jfet_p", "vcvs", "vccs", "ccvs", "cccs", "behavioral_voltage_source", "behavioral_current_source", "mutual_inductance", "voltage_switch", "current_switch" }, description = "Component type (must be lowercase with underscores)" },
+                        component_type = new { type = "string", @enum = new[] { "resistor", "capacitor", "inductor", "diode", "voltage_source", "current_source", "bjt_npn", "bjt_pnp", "mosfet_n", "mosfet_p", "jfet_n", "jfet_p", "vcvs", "vccs", "ccvs", "cccs", "behavioral_voltage_source", "behavioral_current_source", "mutual_inductance", "voltage_switch", "current_switch", "subcircuit" }, description = "Component type (must be lowercase with underscores). For subcircuit, use the 'model' parameter to specify the subcircuit name (e.g., from library_search)." },
                         nodes = new { type = "array", items = new { type = "string" }, description = "Connection nodes" },
                         value = new { type = "number", description = "Component value (DC value for sources)" },
-                        model = new { type = "string", description = "Model name (for semiconductors)" },
+                        model = new { type = "string", description = "Model name (for semiconductors) or subcircuit name (for subcircuit component_type)" },
                         parameters = new { type = "object", description = "Additional parameters. For voltage/current sources: Use \"ac\" or \"acmag\" (number) to specify AC magnitude for AC analysis (e.g., {\"ac\": 1}). Use \"acphase\" (number, degrees) for AC phase. For transient analysis, use waveform parameters. For PULSE waveform, both formats are supported: use \"pulse_v1\", \"pulse_v2\", \"pulse_td\", \"pulse_tr\", \"pulse_tf\", \"pulse_pw\", \"pulse_per\" OR the shorter format \"v1\", \"v2\", \"td\", \"tr\", \"tf\", \"pw\", \"per\". Example: {\"waveform\": \"pulse\", \"pulse_v1\": 0.0, \"pulse_v2\": 5.0, \"pulse_td\": 0.0, \"pulse_tr\": 1e-6, \"pulse_tf\": 1e-6, \"pulse_pw\": 1e-3, \"pulse_per\": 2e-3} OR {\"waveform\": \"pulse\", \"v1\": 0.0, \"v2\": 5.0, \"td\": 0.0, \"tr\": 1e-6, \"tf\": 1e-6, \"pw\": 1e-3, \"per\": 2e-3}. For behavioral sources: Use \"expression\" (string) with LITERAL NUMERIC VALUES ONLY - parameter substitution NOT supported. Expression must contain actual numbers, not variable names. Valid: \"V(input)*5.1\" or \"V(velocity)*6.5/0.0046\". Invalid: \"V(input)*{gain}\" or \"V(vel)*BL/Sd\". Pre-calculate any parameter relationships before creating the component." }
                     },
                     required = new[] { "name", "component_type", "nodes" }
@@ -603,7 +604,7 @@ public class MCPService
             new MCPToolDefinition
             {
                 Name = "import_netlist",
-                Description = "Import a SPICE netlist to create a circuit. Supports standard SPICE format with components (R, C, L, V, I, D, Q, M, J) and .MODEL statements.",
+                Description = "Import a SPICE netlist to create a circuit. Supports standard SPICE format with components (R, C, L, V, I, D, Q, M, J, X) and .MODEL statements. Subcircuit instantiation (X lines) is supported - subcircuit definitions will be automatically loaded from the library if available. Example: Xtweeter tw_out 0 275_030",
                 InputSchema = new
                 {
                     type = "object",
@@ -868,22 +869,67 @@ public class MCPService
             }
         }
 
-        _componentService.AddComponent(circuit, definition);
-
-        // Clear cached results when circuit is modified
-        _resultsCache.Clear(circuitId);
-
-        return new MCPToolResult
+        try
         {
-            Content = new List<MCPContent>
+            _componentService.AddComponent(circuit, definition);
+
+            // Clear cached results when circuit is modified
+            _resultsCache.Clear(circuitId);
+
+            return new MCPToolResult
             {
-                new MCPContent
+                Content = new List<MCPContent>
                 {
-                    Type = "text",
-                    Text = JsonSerializer.Serialize(new { component = name, circuit_id = circuitId, status = "added" }, new JsonSerializerOptions { WriteIndented = true })
+                    new MCPContent
+                    {
+                        Type = "text",
+                        Text = JsonSerializer.Serialize(new { component = name, circuit_id = circuitId, status = "added" }, new JsonSerializerOptions { WriteIndented = true })
+                    }
+                }
+            };
+        }
+        catch (ArgumentException ex) when (componentType.Equals("subcircuit", StringComparison.OrdinalIgnoreCase) && 
+                                          ex.Message.Contains("not found") && 
+                                          _speakerDatabaseService != null)
+        {
+            // Check if this subcircuit exists in the database but not in library
+            var subcircuitName = definition.Model;
+            if (!string.IsNullOrWhiteSpace(subcircuitName))
+            {
+                // Try to find it in the database by searching for the subcircuit name
+                var dbResults = _speakerDatabaseService.SearchSpeakersByParameters(new SpeakerSearchParameters
+                {
+                    Name = subcircuitName,
+                    Limit = 1
+                });
+                
+                var inDatabase = dbResults.Any(r => r.SubcircuitName == subcircuitName);
+                
+                if (inDatabase && _libraryService != null)
+                {
+                    // Subcircuit is in database but not in library - suggest reindexing
+                    throw new ArgumentException(
+                        $"{ex.Message} " +
+                        $"This subcircuit was found in the speaker database but is not available in the library index. " +
+                        $"This indicates a disconnect between the database and library. " +
+                        $"Run 'reindex_libraries' to update the library index, or ensure the library files containing this subcircuit are in the configured library paths. " +
+                        $"Library paths: {(_config.LibraryPaths != null && _config.LibraryPaths.Any() ? string.Join(", ", _config.LibraryPaths) : "not configured")}.",
+                        ex);
+                }
+                else if (inDatabase && _libraryService == null)
+                {
+                    // Subcircuit is in database but library service is not configured
+                    throw new ArgumentException(
+                        $"{ex.Message} " +
+                        $"This subcircuit was found in the speaker database, but LibraryService is not configured. " +
+                        $"Configure LibraryService in dependency injection to enable subcircuit support.",
+                        ex);
                 }
             }
-        };
+            
+            // Re-throw the original exception if we can't provide additional context
+            throw;
+        }
     }
 
     private async Task<MCPToolResult> DefineModel(JsonElement arguments)
@@ -1372,25 +1418,139 @@ public class MCPService
         // If component has a model, include model information
         if (!string.IsNullOrWhiteSpace(componentDef.Model))
         {
-            // Get ModelDefinitions using reflection (it's also internal)
-            var modelDefsProperty = typeof(CircuitModel).GetProperty("ModelDefinitions", 
-                BindingFlags.NonPublic | BindingFlags.Instance);
-            if (modelDefsProperty != null)
+            // For subcircuits, check InternalCircuit for SubcircuitDefinitionEntity using reflection
+            if (componentDef.ComponentType.Equals("subcircuit", StringComparison.OrdinalIgnoreCase))
             {
-                var modelDefs = modelDefsProperty.GetValue(circuit) as Dictionary<string, ModelDefinition>;
-                if (modelDefs != null && modelDefs.TryGetValue(componentDef.Model, out var modelDef))
+                // Access InternalCircuit using reflection (it's internal)
+                var internalCircuitProperty = typeof(CircuitModel).GetProperty("InternalCircuit", 
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+                if (internalCircuitProperty != null)
                 {
-                    response["model_name"] = modelDef.ModelName;
-                    response["model_type"] = modelDef.ModelType;
-                    response["model_parameters"] = modelDef.Parameters ?? new Dictionary<string, double>();
+                    var internalCircuit = internalCircuitProperty.GetValue(circuit);
+                    if (internalCircuit != null)
+                    {
+                        // Try to get entity by name using TryGetEntity method
+                        var tryGetEntityMethod = internalCircuit.GetType().GetMethod("TryGetEntity", 
+                            new[] { typeof(string), typeof(IEntity).MakeByRefType() });
+                        if (tryGetEntityMethod != null)
+                        {
+                            var parameters = new object[] { componentDef.Model, null! };
+                            var found = (bool)tryGetEntityMethod.Invoke(internalCircuit, parameters)!;
+                            var definitionEntity = parameters[1] as IEntity;
+                            
+                            if (found && definitionEntity != null)
+                            {
+                                // Check if it's a SubcircuitDefinitionEntity wrapper (using reflection since it's internal)
+                                var definitionEntityType = definitionEntity.GetType();
+                                var definitionProperty = definitionEntityType.GetProperty("Definition", 
+                                    BindingFlags.Public | BindingFlags.Instance);
+                                
+                                if (definitionProperty != null)
+                                {
+                                    // It's a SubcircuitDefinitionEntity wrapper
+                                    var subcircuitDef = definitionProperty.GetValue(definitionEntity);
+                                    if (subcircuitDef != null)
+                                    {
+                                        // Get Pins property using reflection
+                                        var pinsProperty = subcircuitDef.GetType().GetProperty("Pins");
+                                        var pins = pinsProperty?.GetValue(subcircuitDef) as System.Collections.Generic.IReadOnlyList<string>;
+                                        
+                                        response["model_name"] = componentDef.Model;
+                                        response["model_type"] = "subcircuit";
+                                        response["model_parameters"] = new Dictionary<string, double>(); // Subcircuits don't have parameters
+                                        if (pins != null && pins.Count > 0)
+                                        {
+                                            response["model_pins"] = pins.ToList();
+                                        }
+                                    }
+                                    else
+                                    {
+                                        response["model_name"] = componentDef.Model;
+                                        response["model_type"] = "subcircuit";
+                                        response["model_parameters"] = (Dictionary<string, double>?)null!;
+                                        response["model_error"] = "Subcircuit definition found but could not be accessed";
+                                    }
+                                }
+                                else
+                                {
+                                    // Entity might directly implement ISubcircuitDefinition
+                                    // Check for Pins property
+                                    var pinsProperty = definitionEntityType.GetProperty("Pins");
+                                    if (pinsProperty != null)
+                                    {
+                                        var pins = pinsProperty.GetValue(definitionEntity) as System.Collections.Generic.IReadOnlyList<string>;
+                                        response["model_name"] = componentDef.Model;
+                                        response["model_type"] = "subcircuit";
+                                        response["model_parameters"] = new Dictionary<string, double>();
+                                        if (pins != null && pins.Count > 0)
+                                        {
+                                            response["model_pins"] = pins.ToList();
+                                        }
+                                    }
+                                    else
+                                    {
+                                        response["model_name"] = componentDef.Model;
+                                        response["model_type"] = "subcircuit";
+                                        response["model_parameters"] = (Dictionary<string, double>?)null!;
+                                        response["model_error"] = "Subcircuit definition found but structure is unexpected";
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                // Subcircuit definition not found in circuit
+                                response["model_name"] = componentDef.Model;
+                                response["model_type"] = "subcircuit";
+                                response["model_parameters"] = (Dictionary<string, double>?)null!;
+                                response["model_error"] = "Subcircuit definition not found in circuit";
+                            }
+                        }
+                        else
+                        {
+                            response["model_name"] = componentDef.Model;
+                            response["model_type"] = "subcircuit";
+                            response["model_parameters"] = (Dictionary<string, double>?)null!;
+                            response["model_error"] = "Cannot access circuit entities (reflection failed)";
+                        }
+                    }
+                    else
+                    {
+                        response["model_name"] = componentDef.Model;
+                        response["model_type"] = "subcircuit";
+                        response["model_parameters"] = (Dictionary<string, double>?)null!;
+                        response["model_error"] = "Cannot access internal circuit (reflection failed)";
+                    }
                 }
                 else
                 {
-                    // Model referenced but not found
                     response["model_name"] = componentDef.Model;
-                    response["model_type"] = (string?)null!;
+                    response["model_type"] = "subcircuit";
                     response["model_parameters"] = (Dictionary<string, double>?)null!;
-                    response["model_error"] = "Model definition not found";
+                    response["model_error"] = "Cannot access internal circuit property (reflection failed)";
+                }
+            }
+            else
+            {
+                // For non-subcircuit components, check ModelDefinitions
+                var modelDefsProperty = typeof(CircuitModel).GetProperty("ModelDefinitions", 
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+                if (modelDefsProperty != null)
+                {
+                    var modelDefs = modelDefsProperty.GetValue(circuit) as Dictionary<string, ModelDefinition>;
+                    if (modelDefs != null && modelDefs.TryGetValue(componentDef.Model, out var modelDef))
+                    {
+                        response["model_name"] = modelDef.ModelName;
+                        response["model_type"] = modelDef.ModelType;
+                        response["model_parameters"] = modelDef.Parameters ?? new Dictionary<string, double>();
+                    }
+                    else
+                    {
+                        // Model referenced but not found
+                        response["model_name"] = componentDef.Model;
+                        response["model_type"] = (string?)null!;
+                        response["model_parameters"] = (Dictionary<string, double>?)null!;
+                        response["model_error"] = "Model definition not found";
+                    }
                 }
             }
         }
@@ -3691,6 +3851,12 @@ public class MCPService
             // Create circuit
             var circuit = _circuitManager.CreateCircuit(circuitName ?? "Imported Circuit", $"Imported from netlist");
 
+            // Track failures for error reporting
+            var failedComponents = new List<object>();
+            var failedModels = new List<object>();
+            var errors = new List<string>();
+            var warnings = new List<string>();
+
             // Add models first (components may reference them)
             var modelsAdded = 0;
             foreach (var model in parsedNetlist.Models)
@@ -3702,6 +3868,14 @@ public class MCPService
                 }
                 catch (Exception ex)
                 {
+                    var errorMessage = $"Model '{model.ModelName}': {ex.Message}";
+                    failedModels.Add(new
+                    {
+                        name = model.ModelName,
+                        type = model.ModelType,
+                        error = ex.Message
+                    });
+                    errors.Add(errorMessage);
                     _logger?.LogWarning(ex, "Failed to add model {ModelName}: {Message}", model.ModelName, ex.Message);
                     // Continue with other models
                 }
@@ -3718,6 +3892,14 @@ public class MCPService
                 }
                 catch (Exception ex)
                 {
+                    var errorMessage = $"Component '{component.Name}': {ex.Message}";
+                    failedComponents.Add(new
+                    {
+                        name = component.Name,
+                        type = component.ComponentType,
+                        error = ex.Message
+                    });
+                    errors.Add(errorMessage);
                     _logger?.LogWarning(ex, "Failed to add component {ComponentName}: {Message}", component.Name, ex.Message);
                     // Continue with other components
                 }
@@ -3729,6 +3911,21 @@ public class MCPService
                 _circuitManager.SetActiveCircuit(circuit.Id);
             }
 
+            // Determine status based on failures
+            string status;
+            if (failedComponents.Count == 0 && failedModels.Count == 0)
+            {
+                status = "Success";
+            }
+            else if (componentsAdded > 0 || modelsAdded > 0)
+            {
+                status = "Partial Success";
+            }
+            else
+            {
+                status = "Failed";
+            }
+
             // Build response
             var summary = new
             {
@@ -3738,8 +3935,12 @@ public class MCPService
                 models_added = modelsAdded,
                 total_components = parsedNetlist.Components.Count,
                 total_models = parsedNetlist.Models.Count,
+                failed_components = failedComponents.Count > 0 ? failedComponents : null,
+                failed_models = failedModels.Count > 0 ? failedModels : null,
+                errors = errors.Count > 0 ? errors : null,
+                warnings = warnings.Count > 0 ? warnings : null,
                 is_active = setActive && _circuitManager.GetActiveCircuit()?.Id == circuit.Id,
-                status = "Success"
+                status = status
             };
 
             return new MCPToolResult
@@ -3923,6 +4124,36 @@ public class MCPService
             // Perform search
             var results = _speakerDatabaseService.SearchSpeakersByParameters(parameters);
 
+            // Validate that subcircuits found in database also exist in library index
+            var missingSubcircuits = new List<string>();
+            var warnings = new List<string>();
+            
+            if (_libraryService != null)
+            {
+                foreach (var result in results)
+                {
+                    if (!string.IsNullOrWhiteSpace(result.SubcircuitName))
+                    {
+                        var subcircuit = _libraryService.GetSubcircuitByName(result.SubcircuitName);
+                        if (subcircuit == null)
+                        {
+                            missingSubcircuits.Add(result.SubcircuitName);
+                        }
+                    }
+                }
+                
+                if (missingSubcircuits.Any())
+                {
+                    warnings.Add($"Warning: {missingSubcircuits.Count} subcircuit(s) found in database but not in library index: {string.Join(", ", missingSubcircuits)}. " +
+                                "These subcircuits cannot be used in simulation. Run 'reindex_libraries' to update the library index, or ensure the library files containing these subcircuits are in the configured library paths.");
+                }
+            }
+            else if (results.Any(r => !string.IsNullOrWhiteSpace(r.SubcircuitName)))
+            {
+                warnings.Add("Warning: Library service is not configured. Subcircuits found in database cannot be verified or used. " +
+                              "Configure LibraryService in dependency injection to enable subcircuit support.");
+            }
+
             // Format response
             var response = new
             {
@@ -3938,8 +4169,14 @@ public class MCPService
                     ts_parameters = r.TsParameters,
                     sensitivity = r.Sensitivity,
                     power_rms = r.PowerRms,
-                    price = r.Price
-                }).ToList()
+                    price = r.Price,
+                    // Add availability flag if library service is configured
+                    available_in_library = _libraryService != null && !string.IsNullOrWhiteSpace(r.SubcircuitName) 
+                        ? _libraryService.GetSubcircuitByName(r.SubcircuitName) != null 
+                        : (bool?)null
+                }).ToList(),
+                warnings = warnings.Any() ? warnings : null,
+                missing_subcircuits = missingSubcircuits.Any() ? missingSubcircuits : null
             };
 
             return new MCPToolResult

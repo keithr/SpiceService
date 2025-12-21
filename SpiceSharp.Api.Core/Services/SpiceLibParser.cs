@@ -392,6 +392,12 @@ public class SpiceLibParser
             "MANUFACTURER", "PART_NUMBER", "PRODUCT_NAME", "MODEL_NAME", "TYPE", "DIAMETER", "IMPEDANCE", "POWER_RMS", "POWER_MAX", "SENSITIVITY", "PRICE"
         };
 
+        // Numeric metadata fields that should have units stripped
+        var numericMetadataFields = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "DIAMETER", "IMPEDANCE", "POWER_RMS", "POWER_MAX", "SENSITIVITY", "PRICE"
+        };
+
         foreach (var commentLine in commentLines)
         {
             // Remove leading * and trim
@@ -431,11 +437,31 @@ public class SpiceLibParser
                     tsParameters[key.ToUpper()] = numericValue;
                 }
             }
-            // Check if it's a string metadata field (keep full value including spaces)
+            // Check if it's a string metadata field
             else if (metadataFieldNames.Contains(key))
             {
-                // For string metadata like PRODUCT_NAME, keep the full value
-                metadata[key.ToUpper()] = value;
+                var upperKey = key.ToUpper();
+                // For numeric metadata fields, strip units (similar to T/S parameters)
+                if (numericMetadataFields.Contains(upperKey))
+                {
+                    // Strip units or additional info after a space
+                    // e.g., "6.5 in" -> "6.5", "8 ohms" -> "8"
+                    var metadataValue = value;
+                    if (value.Contains(' '))
+                    {
+                        var firstPart = value.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+                        if (!string.IsNullOrWhiteSpace(firstPart))
+                        {
+                            metadataValue = firstPart;
+                        }
+                    }
+                    metadata[upperKey] = metadataValue;
+                }
+                else
+                {
+                    // For string metadata like PRODUCT_NAME, keep the full value
+                    metadata[upperKey] = value;
+                }
             }
             // Otherwise, treat as generic metadata (keep full value)
             else

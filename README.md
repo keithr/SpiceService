@@ -293,7 +293,8 @@ Features
 - Semiconductors: BJT (NPN/PNP), MOSFET (N/P), JFET (N/P)
 - Switches: Voltage-controlled and current-controlled switches
 - Mutual Inductance (Transformers)
-- **Speaker Subcircuits**: Loudspeaker drivers with Thiele-Small parameters and metadata (see [Speaker Design Tools](#speaker-design-tools))
+- **Subcircuits**: Reusable circuit blocks defined in library files (see [Subcircuits](#subcircuits))
+  - **Speaker Subcircuits**: Loudspeaker drivers with Thiele-Small parameters and metadata (see [Speaker Design Tools](#speaker-design-tools))
 
 ### Analysis Types
 - DC Operating Point
@@ -523,10 +524,11 @@ The MCP server exposes a single endpoint:
 
 The MCP server includes a comprehensive library search service that can search through 500+ SPICE component library files:
 
-- **Tool**: `search_libraries`
-- **Search Capabilities**: Component name, manufacturer, description, parameters
-- **Library Sources**: Automatically indexed from configured library paths
-- **Response Format**: JSON with component details, models, and library file information
+- **Tool**: `library_search`
+- **Search Capabilities**: Component models (diodes, transistors, etc.) and subcircuits by name
+- **Library Sources**: Automatically indexed from configured library paths on startup
+- **Response Format**: JSON with model/subcircuit definitions, parameters, and metadata
+- **Speaker Database Integration**: Speaker subcircuits found via `search_speakers_by_parameters` are validated against the library index to ensure they can be used in simulation
 
 ### Available MCP Tools
 
@@ -600,6 +602,109 @@ All tools are accessed via JSON-RPC 2.0 requests to the `/mcp` endpoint:
 ### Plotting Results (`plot_results` MCP Tool)
 
 The `plot_results` tool generates visualizations from circuit analysis results. It supports multiple plot types and export formats.
+
+### Subcircuits
+
+Subcircuits are reusable circuit blocks defined in SPICE library files (`.lib`). They allow you to create complex circuits by instantiating pre-defined subcircuit definitions multiple times.
+
+#### Adding Subcircuits via MCP
+
+**Step 1: Search for available subcircuits**
+```json
+{
+  "tool": "library_search",
+  "arguments": {
+    "query": "speaker",
+    "type": "subcircuit"
+  }
+}
+```
+
+**Step 2: Add subcircuit instance to circuit**
+```json
+{
+  "tool": "add_component",
+  "arguments": {
+    "name": "Xtweeter",
+    "component_type": "subcircuit",
+    "nodes": ["tw_out", "0"],
+    "model": "275_030"
+  }
+}
+```
+
+**Parameters:**
+- `name` (required): Instance name (must start with 'X' in SPICE, but not required here)
+- `component_type` (required): Must be `"subcircuit"`
+- `nodes` (required): Array of connection nodes (must match subcircuit definition pin count)
+- `model` (required): Name of the subcircuit definition (from library search results)
+
+#### Importing Netlists with Subcircuits
+
+Subcircuits can be imported from SPICE netlists using X-lines:
+
+```spice
+* Example netlist with subcircuit
+V1 input 0 AC 1
+X1 input 0 test_speaker
+```
+
+The `import_netlist` tool automatically:
+- Parses X-lines to identify subcircuit instances
+- Loads subcircuit definitions from indexed libraries
+- Registers definitions before creating instances
+- Validates node count matches definition pin count
+
+#### Exporting Circuits with Subcircuits
+
+When exporting a circuit containing subcircuits, the `export_netlist` tool formats them as X-lines:
+
+```spice
+X1 node1 node2 subcircuit_name
+```
+
+#### Validation
+
+The `validate_circuit` tool checks for subcircuit-related issues:
+- Missing subcircuit definitions
+- Node count mismatches (instance nodes vs. definition pins)
+- Multiple instances of the same subcircuit (verifies definition reuse)
+
+#### Error Messages
+
+Clear, actionable error messages are provided for common issues:
+- Missing `model` parameter: "Subcircuit component 'X1' requires a model (subcircuit name) to be specified."
+- Definition not found: "Subcircuit component 'X1' references definition 'test_speaker' which was not found in the library. Use library_search to find available subcircuits."
+- Node count mismatch: "Subcircuit component 'X1' has 3 node(s), but definition 'test_speaker' expects 2 pin(s)."
+
+#### Library Service Configuration
+
+The LibraryService is responsible for indexing SPICE library files (`.lib`) and making subcircuit definitions available for use in circuits. It is automatically configured in both the Web API and Tray application.
+
+**Library Paths (Priority Order):**
+1. **User Libraries**: `Documents\SpiceService\libraries` (highest priority)
+2. **Installed Libraries**: `libraries` subdirectory next to the executable
+3. **Development Libraries**: Source directory `libraries` folder (for development builds)
+
+**Database-Library Connection:**
+- The speaker database (SQLite) stores metadata about speaker subcircuits (Thiele-Small parameters, specifications, etc.)
+- The library index (in-memory) stores actual subcircuit definitions from `.lib` files
+- When libraries are indexed, the database is automatically populated with speaker metadata
+- Both must be in sync for subcircuits to be usable: database provides searchable metadata, library index provides circuit definitions
+
+**Troubleshooting:**
+- **"Subcircuit not found" errors**: Run `reindex_libraries` to update the library index
+- **"Subcircuit found in database but not in library"**: The database and library index are out of sync. Run `reindex_libraries` or ensure library files are in configured paths
+- **"Library service is not configured"**: LibraryService must be registered in dependency injection (automatically done in Web API and Tray application)
+
+**Reindexing Libraries:**
+```json
+{
+  "tool": "reindex_libraries",
+  "arguments": {}
+}
+```
+This tool re-scans all configured library paths and updates both the library index and speaker database.
 
 **Basic Usage:**
 ```json

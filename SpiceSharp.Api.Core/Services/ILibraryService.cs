@@ -29,4 +29,11 @@ public interface ILibraryService
     /// <param name="limit">Maximum number of results to return</param>
     /// <returns>List of matching subcircuit definitions</returns>
     List<SubcircuitDefinition> SearchSubcircuits(string query, int limit);
+
+    /// <summary>
+    /// Gets a subcircuit definition by exact name
+    /// </summary>
+    /// <param name="name">Exact subcircuit name (case-sensitive)</param>
+    /// <returns>Subcircuit definition if found, null otherwise</returns>
+    SubcircuitDefinition? GetSubcircuitByName(string name);
 }

@@ -111,6 +111,11 @@ public class SpeakerSearchParameters
     public string? Manufacturer { get; set; }
 
     /// <summary>
+    /// Name/Model search (searches subcircuit_name, part_number, and product_name)
+    /// </summary>
+    public string? Name { get; set; }
+
+    /// <summary>
     /// Maximum price in USD
     /// </summary>
     public double? PriceMax { get; set; }
