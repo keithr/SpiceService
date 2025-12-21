@@ -42,6 +42,7 @@ public class SpeakerDatabaseService : ISpeakerDatabaseService
                 subcircuit_name TEXT UNIQUE NOT NULL,
                 manufacturer TEXT,
                 part_number TEXT,
+                product_name TEXT,
                 type TEXT,
                 diameter REAL,
                 impedance INTEGER,
@@ -71,8 +72,40 @@ public class SpeakerDatabaseService : ISpeakerDatabaseService
             CREATE INDEX IF NOT EXISTS idx_qts ON speakers(qts);
             CREATE INDEX IF NOT EXISTS idx_vas ON speakers(vas);
             CREATE INDEX IF NOT EXISTS idx_price ON speakers(price);
+            CREATE INDEX IF NOT EXISTS idx_part_number ON speakers(part_number);
+            CREATE INDEX IF NOT EXISTS idx_subcircuit_name ON speakers(subcircuit_name);
         ";
 
+        command.ExecuteNonQuery();
+
+        // Migration: Add product_name column if it doesn't exist (for existing databases)
+        // Check if column exists by querying table_info
+        command.CommandText = "PRAGMA table_info(speakers)";
+        using var reader = command.ExecuteReader();
+        bool hasProductName = false;
+        while (reader.Read())
+        {
+            var columnName = reader.GetString(1); // Column name is at index 1
+            if (columnName.Equals("product_name", StringComparison.OrdinalIgnoreCase))
+            {
+                hasProductName = true;
+                break;
+            }
+        }
+        reader.Close();
+
+        if (!hasProductName)
+        {
+            command.CommandText = @"
+                ALTER TABLE speakers ADD COLUMN product_name TEXT;
+            ";
+            command.ExecuteNonQuery();
+        }
+        
+        // Create index for product_name (after ensuring column exists)
+        command.CommandText = @"
+            CREATE INDEX IF NOT EXISTS idx_product_name ON speakers(product_name);
+        ";
         command.ExecuteNonQuery();
     }
 
@@ -91,22 +124,28 @@ public class SpeakerDatabaseService : ISpeakerDatabaseService
         foreach (var subcircuit in subcircuits)
         {
             // Only process subcircuits that are actually speakers
-            // Check for TYPE metadata indicating it's a speaker
+            // A subcircuit is considered a speaker if:
+            // 1. It has TYPE metadata indicating it's a speaker type, OR
+            // 2. It has at least one T/S parameter (FS, QTS, VAS, etc.)
+            
             var type = GetMetadataValue(subcircuit, "TYPE");
-            if (string.IsNullOrWhiteSpace(type) || !validSpeakerTypes.Contains(type))
+            var hasValidType = !string.IsNullOrWhiteSpace(type) && validSpeakerTypes.Contains(type);
+            var hasTsParameters = subcircuit.TsParameters != null && subcircuit.TsParameters.Count > 0;
+            
+            if (!hasValidType && !hasTsParameters)
             {
-                // Skip if no TYPE metadata or TYPE is not a valid speaker type
+                // Skip if no TYPE metadata and no T/S parameters
                 continue;
             }
 
             using var command = connection.CreateCommand();
             command.CommandText = @"
                 INSERT OR REPLACE INTO speakers (
-                    subcircuit_name, manufacturer, part_number, type, diameter, impedance,
+                    subcircuit_name, manufacturer, part_number, product_name, type, diameter, impedance,
                     power_rms, sensitivity, price, fs, qts, qes, qms, vas, re, le, bl,
                     xmax, mms, cms, sd, source_file
                 ) VALUES (
-                    @subcircuit_name, @manufacturer, @part_number, @type, @diameter, @impedance,
+                    @subcircuit_name, @manufacturer, @part_number, @product_name, @type, @diameter, @impedance,
                     @power_rms, @sensitivity, @price, @fs, @qts, @qes, @qms, @vas, @re, @le, @bl,
                     @xmax, @mms, @cms, @sd, @source_file
                 )
@@ -116,6 +155,7 @@ public class SpeakerDatabaseService : ISpeakerDatabaseService
             command.Parameters.AddWithValue("@subcircuit_name", subcircuit.Name);
             AddParameterOrNull(command, "@manufacturer", GetMetadataValue(subcircuit, "MANUFACTURER"));
             AddParameterOrNull(command, "@part_number", GetMetadataValue(subcircuit, "PART_NUMBER"));
+            AddParameterOrNull(command, "@product_name", GetMetadataValue(subcircuit, "PRODUCT_NAME"));
             AddParameterOrNull(command, "@type", GetMetadataValue(subcircuit, "TYPE"));
             AddParameterOrNull(command, "@diameter", GetMetadataDouble(subcircuit, "DIAMETER"));
             AddParameterOrNull(command, "@impedance", GetMetadataInt(subcircuit, "IMPEDANCE"));
@@ -399,6 +439,13 @@ public class SpeakerDatabaseService : ISpeakerDatabaseService
             command.Parameters.AddWithValue("@manufacturer", $"%{parameters.Manufacturer}%");
         }
 
+        // Name/Model search (searches subcircuit_name, part_number, and product_name)
+        if (!string.IsNullOrWhiteSpace(parameters.Name))
+        {
+            whereConditions.Add("(subcircuit_name LIKE @name OR part_number LIKE @name OR product_name LIKE @name)");
+            command.Parameters.AddWithValue("@name", $"%{parameters.Name}%");
+        }
+
         // Price max
         if (parameters.PriceMax.HasValue)
         {
@@ -429,7 +476,7 @@ public class SpeakerDatabaseService : ISpeakerDatabaseService
 
         command.CommandText = $@"
             SELECT 
-                subcircuit_name, manufacturer, part_number, type, diameter, impedance,
+                subcircuit_name, manufacturer, part_number, product_name, type, diameter, impedance,
                 power_rms, sensitivity, price, fs, qts, qes, qms, vas, re, le, bl,
                 xmax, mms, cms, sd
             FROM speakers
@@ -462,7 +509,7 @@ public class SpeakerDatabaseService : ISpeakerDatabaseService
         using var command = connection.CreateCommand();
         command.CommandText = @"
             SELECT 
-                subcircuit_name, manufacturer, part_number, type, diameter, impedance,
+                subcircuit_name, manufacturer, part_number, product_name, type, diameter, impedance,
                 power_rms, sensitivity, price, fs, qts, qes, qms, vas, re, le, bl,
                 xmax, mms, cms, sd
             FROM speakers
@@ -486,28 +533,29 @@ public class SpeakerDatabaseService : ISpeakerDatabaseService
             SubcircuitName = reader.GetString(0),
             Manufacturer = reader.IsDBNull(1) ? null : reader.GetString(1),
             PartNumber = reader.IsDBNull(2) ? null : reader.GetString(2),
-            Type = reader.IsDBNull(3) ? null : reader.GetString(3),
-            Diameter = reader.IsDBNull(4) ? null : reader.GetDouble(4),
-            Impedance = reader.IsDBNull(5) ? null : reader.GetInt32(5),
-            PowerRms = reader.IsDBNull(6) ? null : reader.GetInt32(6),
-            Sensitivity = reader.IsDBNull(7) ? null : reader.GetDouble(7),
-            Price = reader.IsDBNull(8) ? null : reader.GetDouble(8),
+            ProductName = reader.IsDBNull(3) ? null : reader.GetString(3),
+            Type = reader.IsDBNull(4) ? null : reader.GetString(4),
+            Diameter = reader.IsDBNull(5) ? null : reader.GetDouble(5),
+            Impedance = reader.IsDBNull(6) ? null : reader.GetInt32(6),
+            PowerRms = reader.IsDBNull(7) ? null : reader.GetInt32(7),
+            Sensitivity = reader.IsDBNull(8) ? null : reader.GetDouble(8),
+            Price = reader.IsDBNull(9) ? null : reader.GetDouble(9),
             TsParameters = new Dictionary<string, double>()
         };
 
-        // Add T/S parameters
-        if (!reader.IsDBNull(9)) result.TsParameters["FS"] = reader.GetDouble(9);
-        if (!reader.IsDBNull(10)) result.TsParameters["QTS"] = reader.GetDouble(10);
-        if (!reader.IsDBNull(11)) result.TsParameters["QES"] = reader.GetDouble(11);
-        if (!reader.IsDBNull(12)) result.TsParameters["QMS"] = reader.GetDouble(12);
-        if (!reader.IsDBNull(13)) result.TsParameters["VAS"] = reader.GetDouble(13);
-        if (!reader.IsDBNull(14)) result.TsParameters["RE"] = reader.GetDouble(14);
-        if (!reader.IsDBNull(15)) result.TsParameters["LE"] = reader.GetDouble(15);
-        if (!reader.IsDBNull(16)) result.TsParameters["BL"] = reader.GetDouble(16);
-        if (!reader.IsDBNull(17)) result.TsParameters["XMAX"] = reader.GetDouble(17);
-        if (!reader.IsDBNull(18)) result.TsParameters["MMS"] = reader.GetDouble(18);
-        if (!reader.IsDBNull(19)) result.TsParameters["CMS"] = reader.GetDouble(19);
-        if (!reader.IsDBNull(20)) result.TsParameters["SD"] = reader.GetDouble(20);
+        // Add T/S parameters (indices shifted by 1 due to product_name column)
+        if (!reader.IsDBNull(10)) result.TsParameters["FS"] = reader.GetDouble(10);
+        if (!reader.IsDBNull(11)) result.TsParameters["QTS"] = reader.GetDouble(11);
+        if (!reader.IsDBNull(12)) result.TsParameters["QES"] = reader.GetDouble(12);
+        if (!reader.IsDBNull(13)) result.TsParameters["QMS"] = reader.GetDouble(13);
+        if (!reader.IsDBNull(14)) result.TsParameters["VAS"] = reader.GetDouble(14);
+        if (!reader.IsDBNull(15)) result.TsParameters["RE"] = reader.GetDouble(15);
+        if (!reader.IsDBNull(16)) result.TsParameters["LE"] = reader.GetDouble(16);
+        if (!reader.IsDBNull(17)) result.TsParameters["BL"] = reader.GetDouble(17);
+        if (!reader.IsDBNull(18)) result.TsParameters["XMAX"] = reader.GetDouble(18);
+        if (!reader.IsDBNull(19)) result.TsParameters["MMS"] = reader.GetDouble(19);
+        if (!reader.IsDBNull(20)) result.TsParameters["CMS"] = reader.GetDouble(20);
+        if (!reader.IsDBNull(21)) result.TsParameters["SD"] = reader.GetDouble(21);
 
         return result;
     }

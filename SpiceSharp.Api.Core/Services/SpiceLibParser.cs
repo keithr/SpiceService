@@ -389,7 +389,7 @@ public class SpiceLibParser
         // Metadata field names (string values)
         var metadataFieldNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "MANUFACTURER", "PART_NUMBER", "TYPE", "DIAMETER", "IMPEDANCE", "POWER_RMS", "POWER_MAX", "SENSITIVITY", "PRICE"
+            "MANUFACTURER", "PART_NUMBER", "PRODUCT_NAME", "MODEL_NAME", "TYPE", "DIAMETER", "IMPEDANCE", "POWER_RMS", "POWER_MAX", "SENSITIVITY", "PRICE"
         };
 
         foreach (var commentLine in commentLines)
@@ -407,35 +407,37 @@ public class SpiceLibParser
             var key = line.Substring(0, colonIndex).Trim();
             var value = line.Substring(colonIndex + 1).Trim();
 
-            // Handle cases where value might have units or additional info after a space
-            // e.g., "SENSITIVITY: 88.5 dB" -> extract "88.5"
-            if (value.Contains(' '))
-            {
-                var firstPart = value.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
-                if (!string.IsNullOrWhiteSpace(firstPart))
-                {
-                    value = firstPart;
-                }
-            }
-
             if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value))
                 continue;
 
-            // Check if it's a T/S parameter
+            // Check if it's a T/S parameter (numeric)
             if (tsParameterNames.Contains(key))
             {
-                if (double.TryParse(value, System.Globalization.NumberStyles.Float,
+                // For numeric T/S parameters, handle units or additional info after a space
+                // e.g., "SENSITIVITY: 88.5 dB" -> extract "88.5"
+                var numericValueStr = value;
+                if (value.Contains(' '))
+                {
+                    var firstPart = value.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+                    if (!string.IsNullOrWhiteSpace(firstPart))
+                    {
+                        numericValueStr = firstPart;
+                    }
+                }
+                
+                if (double.TryParse(numericValueStr, System.Globalization.NumberStyles.Float,
                     System.Globalization.CultureInfo.InvariantCulture, out var numericValue))
                 {
                     tsParameters[key.ToUpper()] = numericValue;
                 }
             }
-            // Check if it's a metadata field
+            // Check if it's a string metadata field (keep full value including spaces)
             else if (metadataFieldNames.Contains(key))
             {
+                // For string metadata like PRODUCT_NAME, keep the full value
                 metadata[key.ToUpper()] = value;
             }
-            // Otherwise, treat as generic metadata
+            // Otherwise, treat as generic metadata (keep full value)
             else
             {
                 metadata[key.ToUpper()] = value;

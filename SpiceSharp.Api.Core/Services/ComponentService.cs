@@ -1,5 +1,6 @@
 using SpiceSharp;
 using SpiceSharp.Entities;
+using SpiceSharp.Components;
 using SpiceSharp.Api.Core.Models;
 
 namespace SpiceSharp.Api.Core.Services;
@@ -10,13 +11,16 @@ namespace SpiceSharp.Api.Core.Services;
 public class ComponentService : IComponentService
 {
     private readonly ComponentFactory _factory;
+    private readonly ILibraryService? _libraryService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ComponentService"/> class.
     /// </summary>
-    public ComponentService()
+    /// <param name="libraryService">Optional library service for loading subcircuit definitions</param>
+    public ComponentService(ILibraryService? libraryService = null)
     {
         _factory = new ComponentFactory();
+        _libraryService = libraryService;
     }
 
     /// <inheritdoc/>
@@ -36,6 +40,12 @@ public class ComponentService : IComponentService
         if (definition.ComponentType.Equals("mutual_inductance", StringComparison.OrdinalIgnoreCase))
         {
             ValidateMutualInductance(circuit, definition);
+        }
+
+        // Special handling for subcircuits - need to load definition from library
+        if (definition.ComponentType.Equals("subcircuit", StringComparison.OrdinalIgnoreCase))
+        {
+            return AddSubcircuitComponent(circuit, definition);
         }
 
         // Create the SpiceSharp entity using the factory
@@ -312,6 +322,121 @@ public class ComponentService : IComponentService
                     throw new ArgumentException($"Inductor '{inductor2}' specified in 'inductor2' parameter does not exist in the circuit. Create the inductor first before adding mutual inductance.");
             }
         }
+    }
+
+    /// <summary>
+    /// Adds a subcircuit component, loading the subcircuit definition from the library if needed.
+    /// </summary>
+    private IEntity AddSubcircuitComponent(CircuitModel circuit, ComponentDefinition definition)
+    {
+        if (string.IsNullOrWhiteSpace(definition.Model))
+            throw new ArgumentException("Subcircuit components require a model (subcircuit name) to be specified.");
+
+        if (definition.Nodes == null || definition.Nodes.Count == 0)
+            throw new ArgumentException("Subcircuit requires at least one connection node.");
+
+        var subcircuitName = definition.Model;
+
+        // Check if subcircuit definition already exists in circuit
+        var existingDefinition = circuit.InternalCircuit.TryGetEntity(subcircuitName, out var existingEntity) 
+            ? existingEntity 
+            : null;
+
+        // If definition doesn't exist, try to load from library
+        if (existingDefinition == null && _libraryService != null)
+        {
+            var librarySubcircuit = _libraryService.GetSubcircuitByName(subcircuitName);
+            if (librarySubcircuit != null)
+            {
+                // Create SpiceSharp subcircuit definition from library definition
+                var subcircuitDef = CreateSpiceSharpSubcircuitDefinition(librarySubcircuit);
+                circuit.InternalCircuit.Add((IEntity) subcircuitDef);
+            }
+            else
+            {
+                throw new ArgumentException(
+                    $"Subcircuit definition '{subcircuitName}' not found in library. " +
+                    $"Use library_search to find available subcircuits, or define the subcircuit before instantiating it.");
+            }
+        }
+        else if (existingDefinition == null)
+        {
+            throw new ArgumentException(
+                $"Subcircuit definition '{subcircuitName}' not found in circuit and library service is not available. " +
+                $"Define the subcircuit before instantiating it, or configure LibraryService.");
+        }
+
+        // Now create the subcircuit instance
+        // SpiceSharp.Subcircuit constructor: Subcircuit(name, subcircuitDefinitionName, nodes...)
+        var subcircuitInstance = new Subcircuit(
+            definition.Name,
+            (ISubcircuitDefinition) _libraryService.GetSubcircuitByName(subcircuitName), // This references the definition we just added
+            definition.Nodes.ToArray()
+        );
+
+        // Store the definition for export and metadata tracking
+        circuit.ComponentDefinitions[definition.Name] = definition;
+
+        // Add to the circuit
+        circuit.InternalCircuit.Add(subcircuitInstance);
+
+        // Update modified timestamp
+        circuit.ModifiedAt = DateTime.UtcNow;
+
+        return subcircuitInstance;
+    }
+
+    /// <summary>
+    /// Creates a SpiceSharp SubcircuitDefinition entity from a library SubcircuitDefinition.
+    /// </summary>
+    private SpiceSharp.Components.SubcircuitDefinition CreateSpiceSharpSubcircuitDefinition(Models.SubcircuitDefinition libraryDef)
+    {
+        // Parse the subcircuit definition into components using our NetlistParser
+        var netlistParser = new NetlistParser();
+        var parsedNetlist = netlistParser.ParseNetlist(libraryDef.Definition);
+        
+        // Create a temporary circuit to hold the subcircuit's internal components
+        var subcircuitCircuit = new Circuit();
+        
+        // Add all components from the parsed definition to the subcircuit circuit
+        var componentFactory = new ComponentFactory();
+        foreach (var componentDef in parsedNetlist.Components)
+        {
+            try
+            {
+                var entity = componentFactory.CreateComponent(componentDef);
+                subcircuitCircuit.Add(entity);
+            }
+            catch (Exception ex)
+            {
+                // Log but continue - some components might not be supported yet
+                System.Diagnostics.Debug.WriteLine($"Warning: Could not add component {componentDef.Name} to subcircuit: {ex.Message}");
+            }
+        }
+        
+        // Add all models to the subcircuit circuit
+        var modelService = new ModelService();
+        foreach (var modelDef in parsedNetlist.Models)
+        {
+            try
+            {
+                var modelEntity = modelService.CreateModel(modelDef);
+                subcircuitCircuit.Add(modelEntity);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Warning: Could not add model {modelDef.ModelName} to subcircuit: {ex.Message}");
+            }
+        }
+        
+        // Create the SpiceSharp SubcircuitDefinition
+        // SpiceSharp.Components.SubcircuitDefinition constructor: SubcircuitDefinition(name, nodes, circuit)
+        var subcircuitDef = new SpiceSharp.Components.SubcircuitDefinition(
+            subcircuitCircuit,
+            libraryDef.Nodes.ToArray()
+        );
+        
+        return subcircuitDef;
     }
 }
 

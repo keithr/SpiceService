@@ -72,7 +72,7 @@ public class ModelService : IModelService
     /// <summary>
     /// Creates a SpiceSharp model entity from a model definition.
     /// </summary>
-    private IEntity CreateModel(ModelDefinition definition)
+    internal IEntity CreateModel(ModelDefinition definition)
     {
         if (definition == null)
             throw new ArgumentNullException(nameof(definition));
