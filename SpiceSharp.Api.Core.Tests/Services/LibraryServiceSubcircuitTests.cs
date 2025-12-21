@@ -256,5 +256,289 @@ R1 1 2 1K
             Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public void IndexLibraries_IndexesSubcircuitsWithMetadata()
+    {
+        // Arrange
+        var service = new LibraryService();
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var libFile = Path.Combine(tempDir, "test.lib");
+        File.WriteAllText(libFile, @"
+* MANUFACTURER: Peerless
+* TYPE: woofers
+* DIAMETER: 6.5
+* IMPEDANCE: 8
+* PRICE: 59.98
+.SUBCKT 264_1148 PLUS MINUS
+Re PLUS 1 2.73
+Le 1 2 0.65mH
+.ENDS
+");
+
+        try
+        {
+            // Act
+            service.IndexLibraries(new[] { tempDir });
+
+            // Assert
+            var results = service.SearchSubcircuits("264_1148", 10);
+            Assert.Single(results);
+            var sub = results.First();
+            Assert.Equal("264_1148", sub.Name);
+            Assert.Equal("Peerless", sub.Metadata["MANUFACTURER"]);
+            Assert.Equal("woofers", sub.Metadata["TYPE"]);
+            Assert.Equal("6.5", sub.Metadata["DIAMETER"]);
+            Assert.Equal("8", sub.Metadata["IMPEDANCE"]);
+            Assert.Equal("59.98", sub.Metadata["PRICE"]);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void SearchSubcircuits_ReturnsSubcircuitsWithTsParameters()
+    {
+        // Arrange
+        var service = new LibraryService();
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var libFile = Path.Combine(tempDir, "test.lib");
+        File.WriteAllText(libFile, @"
+* FS: 42.18
+* QTS: 0.35
+* QES: 0.38
+* QMS: 4.92
+* VAS: 11.2
+* RE: 2.73
+* LE: 0.65
+* BL: 8.27
+.SUBCKT speaker_test PLUS MINUS
+Re PLUS 1 2.73
+Le 1 2 0.65mH
+.ENDS
+");
+
+        try
+        {
+            service.IndexLibraries(new[] { tempDir });
+
+            // Act
+            var results = service.SearchSubcircuits("speaker_test", 10);
+
+            // Assert
+            Assert.Single(results);
+            var sub = results.First();
+            Assert.Equal("speaker_test", sub.Name);
+            Assert.Equal(42.18, sub.TsParameters["FS"]);
+            Assert.Equal(0.35, sub.TsParameters["QTS"]);
+            Assert.Equal(0.38, sub.TsParameters["QES"]);
+            Assert.Equal(4.92, sub.TsParameters["QMS"]);
+            Assert.Equal(11.2, sub.TsParameters["VAS"]);
+            Assert.Equal(2.73, sub.TsParameters["RE"]);
+            Assert.Equal(0.65, sub.TsParameters["LE"]);
+            Assert.Equal(8.27, sub.TsParameters["BL"]);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void SearchSubcircuits_ReturnsSubcircuitsWithMetadata()
+    {
+        // Arrange
+        var service = new LibraryService();
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var libFile = Path.Combine(tempDir, "test.lib");
+        File.WriteAllText(libFile, @"
+* MANUFACTURER: Peerless
+* PART_NUMBER: 264-1148
+* TYPE: woofers
+* DIAMETER: 6.5
+* IMPEDANCE: 8
+* POWER_RMS: 75
+* SENSITIVITY: 88.5
+* PRICE: 59.98
+.SUBCKT 264_1148 PLUS MINUS
+Re PLUS 1 2.73
+Le 1 2 0.65mH
+.ENDS
+");
+
+        try
+        {
+            service.IndexLibraries(new[] { tempDir });
+
+            // Act
+            var results = service.SearchSubcircuits("264_1148", 10);
+
+            // Assert
+            Assert.Single(results);
+            var sub = results.First();
+            Assert.Equal("264_1148", sub.Name);
+            Assert.NotNull(sub.Metadata);
+            Assert.Equal("Peerless", sub.Metadata["MANUFACTURER"]);
+            Assert.Equal("264-1148", sub.Metadata["PART_NUMBER"]);
+            Assert.Equal("woofers", sub.Metadata["TYPE"]);
+            Assert.Equal("6.5", sub.Metadata["DIAMETER"]);
+            Assert.Equal("8", sub.Metadata["IMPEDANCE"]);
+            Assert.Equal("75", sub.Metadata["POWER_RMS"]);
+            Assert.Equal("88.5", sub.Metadata["SENSITIVITY"]);
+            Assert.Equal("59.98", sub.Metadata["PRICE"]);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void IndexLibraries_PopulatesDatabase()
+    {
+        // Arrange
+        var dbPath = Path.Combine(Path.GetTempPath(), $"test_speakers_{Guid.NewGuid()}.db");
+        var speakerDbService = new SpeakerDatabaseService(dbPath);
+        var service = new LibraryService(speakerDbService);
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var libFile = Path.Combine(tempDir, "test.lib");
+        File.WriteAllText(libFile, @"
+* MANUFACTURER: Peerless
+* TYPE: woofers
+* FS: 42.18
+* QTS: 0.35
+.SUBCKT 264_1148 PLUS MINUS
+Re PLUS 1 2.73
+Le 1 2 0.65mH
+.ENDS
+");
+
+        try
+        {
+            // Act
+            service.IndexLibraries(new[] { tempDir });
+
+            // Assert - verify database was populated
+            using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={dbPath}"))
+            {
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText = "SELECT COUNT(*) FROM speakers WHERE subcircuit_name = '264_1148'";
+                var count = Convert.ToInt32(command.ExecuteScalar());
+                Assert.Equal(1, count);
+            }
+
+            // Force cleanup
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+            // Retry deletion
+            for (int i = 0; i < 5; i++)
+            {
+                try
+                {
+                    if (File.Exists(dbPath))
+                    {
+                        File.Delete(dbPath);
+                    }
+                    break;
+                }
+                catch (IOException)
+                {
+                    if (i < 4)
+                    {
+                        System.Threading.Thread.Sleep(100);
+                    }
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public void IndexLibraries_DatabaseContainsAllIndexedSpeakers()
+    {
+        // Arrange
+        var dbPath = Path.Combine(Path.GetTempPath(), $"test_speakers_{Guid.NewGuid()}.db");
+        var speakerDbService = new SpeakerDatabaseService(dbPath);
+        var service = new LibraryService(speakerDbService);
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        File.WriteAllText(Path.Combine(tempDir, "lib1.lib"), @"
+* TYPE: woofers
+* FS: 40.0
+.SUBCKT speaker1 PLUS MINUS
+Re PLUS 1 2.0
+.ENDS
+");
+        File.WriteAllText(Path.Combine(tempDir, "lib2.lib"), @"
+* TYPE: tweeters
+* FS: 2000.0
+.SUBCKT speaker2 PLUS MINUS
+Re PLUS 1 3.0
+.ENDS
+");
+
+        try
+        {
+            // Act
+            service.IndexLibraries(new[] { tempDir });
+
+            // Assert - verify both speakers are in database
+            using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={dbPath}"))
+            {
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText = "SELECT COUNT(*) FROM speakers";
+                var count = Convert.ToInt32(command.ExecuteScalar());
+                Assert.Equal(2, count);
+
+                command.CommandText = "SELECT subcircuit_name FROM speakers ORDER BY subcircuit_name";
+                using var reader = command.ExecuteReader();
+                var names = new List<string>();
+                while (reader.Read())
+                {
+                    names.Add(reader.GetString(0));
+                }
+                Assert.Contains("speaker1", names);
+                Assert.Contains("speaker2", names);
+            }
+
+            // Force cleanup
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+            // Retry deletion
+            for (int i = 0; i < 5; i++)
+            {
+                try
+                {
+                    if (File.Exists(dbPath))
+                    {
+                        File.Delete(dbPath);
+                    }
+                    break;
+                }
+                catch (IOException)
+                {
+                    if (i < 4)
+                    {
+                        System.Threading.Thread.Sleep(100);
+                    }
+                }
+            }
+        }
+    }
 }
 

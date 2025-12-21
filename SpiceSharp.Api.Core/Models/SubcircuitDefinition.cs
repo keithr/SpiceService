@@ -19,5 +19,17 @@ public class SubcircuitDefinition
     /// Internal netlist definition of the subcircuit (all lines between .SUBCKT and .ENDS).
     /// </summary>
     public string Definition { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Metadata extracted from comment lines before the .SUBCKT statement.
+    /// Contains fields like MANUFACTURER, PART_NUMBER, TYPE, DIAMETER, IMPEDANCE, POWER_RMS, SENSITIVITY, PRICE.
+    /// </summary>
+    public Dictionary<string, string> Metadata { get; set; } = new();
+
+    /// <summary>
+    /// Thiele-Small (T/S) parameters extracted from comment lines before the .SUBCKT statement.
+    /// Contains parameters like FS, QTS, QES, QMS, VAS, RE, LE, BL, XMAX, MMS, CMS, SD.
+    /// </summary>
+    public Dictionary<string, double> TsParameters { get; set; } = new();
 }
 

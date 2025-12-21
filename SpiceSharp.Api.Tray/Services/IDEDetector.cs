@@ -82,15 +82,18 @@ public static class IDEDetector
         
         var isInstalled = paths.Any(File.Exists);
         
-        // VS Code uses workspace-level configs, so we don't have a global config path
-        // Return a placeholder path for display purposes
+        // VS Code MCP configuration file (NOT settings.json - uses mcp.json)
+        var vsCodeMcpPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "Code", "User", "mcp.json");
+        
         return new DetectedIDE
         {
             Name = "VS Code",
-            ConfigFilePath = string.Empty, // No global config path
+            ConfigFilePath = vsCodeMcpPath,  // mcp.json, not settings.json
             IsInstalled = isInstalled,
-            IsSelected = false, // Never auto-select VS Code (requires manual setup)
-            RequiresManualSetup = true
+            IsSelected = isInstalled, // Auto-select if installed
+            RequiresManualSetup = false // Automatic configuration enabled
         };
     }
     

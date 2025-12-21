@@ -33,6 +33,9 @@ public class MCPService
     private readonly CircuitResultsCache _resultsCache;
     private readonly MCPServerConfig _config;
     private readonly ILibraryService? _libraryService;
+    private readonly ISpeakerDatabaseService? _speakerDatabaseService;
+    private readonly IEnclosureDesignService? _enclosureDesignService;
+    private readonly ICrossoverCompatibilityService? _crossoverCompatibilityService;
     private readonly ILogger<MCPService>? _logger;
 
     public MCPService(
@@ -54,6 +57,9 @@ public class MCPService
         CircuitResultsCache resultsCache,
         MCPServerConfig config,
         ILibraryService? libraryService = null,
+        ISpeakerDatabaseService? speakerDatabaseService = null,
+        IEnclosureDesignService? enclosureDesignService = null,
+        ICrossoverCompatibilityService? crossoverCompatibilityService = null,
         ILogger<MCPService>? logger = null)
     {
         _circuitManager = circuitManager;
@@ -74,6 +80,9 @@ public class MCPService
         _resultsCache = resultsCache;
         _config = config;
         _libraryService = libraryService;
+        _speakerDatabaseService = speakerDatabaseService;
+        _enclosureDesignService = enclosureDesignService;
+        _crossoverCompatibilityService = crossoverCompatibilityService;
         _logger = logger;
 
         // Index libraries on startup if paths are configured
@@ -329,6 +338,78 @@ public class MCPService
             },
             new MCPToolDefinition
             {
+                Name = "search_speakers_by_parameters",
+                Description = "Search for speakers by Thiele-Small parameters and specifications. Returns matching speakers with their T/S parameters, metadata, and pricing information. Use this tool to find speakers that match specific design requirements (e.g., FS range, QTS range, diameter, impedance, price).",
+                InputSchema = new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        driver_type = new { type = "array", items = new { type = "string" }, description = "Driver type filter (e.g., ['woofers', 'tweeters', 'midrange'])" },
+                        diameter_min = new { type = "number", description = "Minimum diameter in inches" },
+                        diameter_max = new { type = "number", description = "Maximum diameter in inches" },
+                        impedance = new { type = "integer", description = "Impedance in ohms" },
+                        fs_min = new { type = "number", description = "Minimum FS (free air resonance) in Hz" },
+                        fs_max = new { type = "number", description = "Maximum FS in Hz" },
+                        qts_min = new { type = "number", description = "Minimum QTS (total Q factor)" },
+                        qts_max = new { type = "number", description = "Maximum QTS" },
+                        qes_min = new { type = "number", description = "Minimum QES (electrical Q factor)" },
+                        qes_max = new { type = "number", description = "Maximum QES" },
+                        qms_min = new { type = "number", description = "Minimum QMS (mechanical Q factor)" },
+                        qms_max = new { type = "number", description = "Maximum QMS" },
+                        vas_min = new { type = "number", description = "Minimum VAS (equivalent air compliance) in liters" },
+                        vas_max = new { type = "number", description = "Maximum VAS in liters" },
+                        sensitivity_min = new { type = "number", description = "Minimum sensitivity in dB" },
+                        sensitivity_max = new { type = "number", description = "Maximum sensitivity in dB" },
+                        power_min = new { type = "integer", description = "Minimum power handling (RMS) in watts" },
+                        power_max = new { type = "integer", description = "Maximum power handling (RMS) in watts" },
+                        xmax_min = new { type = "number", description = "Minimum XMAX (maximum linear excursion) in mm" },
+                        xmax_max = new { type = "number", description = "Maximum XMAX in mm" },
+                        manufacturer = new { type = "string", description = "Manufacturer name filter (partial match)" },
+                        price_max = new { type = "number", description = "Maximum price in USD" },
+                        sort_by = new { type = "string", @enum = new[] { "sensitivity", "price", "fs", "qts", "vas" }, description = "Sort field" },
+                        sort_direction = new { type = "string", @enum = new[] { "asc", "desc" }, description = "Sort direction", @default = "asc" },
+                        limit = new { type = "integer", description = "Maximum number of results to return", @default = 50, minimum = 1, maximum = 1000 }
+                    },
+                    required = Array.Empty<string>()
+                }
+            },
+            new MCPToolDefinition
+            {
+                Name = "calculate_enclosure_design",
+                Description = "Calculate speaker enclosure design parameters (sealed or vented box). Looks up speaker by model name from the database and calculates optimal box volume, tuning frequency, port dimensions, and predicted frequency response. Supports multiple alignment types for vented boxes (QB3, B4, SBB4, C4) and target Qtc values for sealed boxes (Butterworth 0.707, Bessel 0.577, etc.).",
+                InputSchema = new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        model = new { type = "string", description = "Speaker model/subcircuit name (e.g., '264_1148')" },
+                        enclosure_type = new { type = "string", @enum = new[] { "sealed", "vented" }, description = "Enclosure type: 'sealed' or 'vented'" },
+                        alignment = new { type = "string", @enum = new[] { "QB3", "B4", "SBB4", "C4" }, description = "Vented box alignment type (required for vented boxes): QB3 (extended bass), B4 (balanced), SBB4 (small box), C4 (compact)" },
+                        target_qtc = new { type = "number", description = "Target Qtc for sealed boxes (e.g., 0.707 for Butterworth, 0.577 for Bessel, 1.0 for Critically Damped). Required for sealed boxes." }
+                    },
+                    required = new[] { "model", "enclosure_type" }
+                }
+            },
+            new MCPToolDefinition
+            {
+                Name = "check_crossover_compatibility",
+                Description = "Check compatibility between a woofer and tweeter for a given crossover configuration. Validates woofer beaming limits, tweeter Fs requirements, sensitivity matching, and impedance compatibility. Returns a compatibility score (0-100) with detailed recommendations and warnings.",
+                InputSchema = new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        woofer_model = new { type = "string", description = "Woofer model/subcircuit name (e.g., '264_1148')" },
+                        tweeter_model = new { type = "string", description = "Tweeter model/subcircuit name" },
+                        crossover_frequency = new { type = "number", description = "Crossover frequency in Hz" },
+                        crossover_order = new { type = "integer", description = "Crossover order (1, 2, 3, or 4)", minimum = 1, maximum = 4 }
+                    },
+                    required = new[] { "woofer_model", "tweeter_model", "crossover_frequency", "crossover_order" }
+                }
+            },
+            new MCPToolDefinition
+            {
                 Name = "render_schematic",
                 Description = "Render a circuit as an SVG schematic diagram. Usage: Provide 'circuit_id' to render a specific circuit, or omit it to render the active circuit. Use 'output_format' to specify how to return the SVG: 'image' (base64-encoded for display), 'text' (raw SVG string), or 'file' (save to disk). You can specify multiple formats as an array (e.g., ['image', 'text']). If 'file' is specified, provide 'file_path' to specify where to save the SVG file. Options: 'skin_type' ('Analog' for resistors/capacitors/transistors, 'Digital' for logic gates), 'show_values' (display component values), 'external_ports' (see details below). For large circuits, optionally increase 'max_memory' (bytes, default 4GB) or 'timeout_seconds' (default 600 seconds) if you encounter memory or timeout errors. VISUAL APPEARANCE - external_ports: By default (or with []), the schematic renders as a clean closed circuit WITHOUT antenna symbols - this is what most users expect. If you specify node names in external_ports, those nodes will display antenna symbols indicating they are external connection points. Only use external_ports when designing modular/subcircuit blocks that will connect to other circuits. For standalone circuits, omit external_ports or use [] to avoid confusing antenna symbols. POWER SUPPLY LABELING: Power supplies (voltage sources) are labeled with their component name on the schematic. Use descriptive names like \"VCC_5V\" or \"VDD_12V\" when creating power supplies to make the voltage value clear. With 'show_values' enabled (default), the voltage value also appears, but the component name is the primary identifier. Standard conventions: VCC (positive supply), VDD (MOSFET positive), VSS (negative/ground), VEE (negative supply).",
                 InputSchema = new
@@ -534,6 +615,17 @@ public class MCPService
                     },
                     required = new[] { "netlist" }
                 }
+            },
+            new MCPToolDefinition
+            {
+                Name = "reindex_libraries",
+                Description = "Re-index all SPICE library files from configured library paths. This will re-parse all .lib files and update the speaker database with corrected metadata (e.g., impedance values). Use this after fixing metadata parsing issues or when library files are updated.",
+                InputSchema = new
+                {
+                    type = "object",
+                    properties = new { },
+                    required = Array.Empty<string>()
+                }
             }
         };
         
@@ -655,6 +747,10 @@ public class MCPService
                 "measure_response" => await MeasureResponse(arguments),
                 "calculate_group_delay" => await CalculateGroupDelay(arguments),
                 "import_netlist" => await ImportNetlist(arguments),
+                "reindex_libraries" => await ReindexLibraries(arguments),
+                "search_speakers_by_parameters" => await SearchSpeakersByParameters(arguments),
+                "calculate_enclosure_design" => await CalculateEnclosureDesign(arguments),
+                "check_crossover_compatibility" => await CheckCrossoverCompatibility(arguments),
                 _ => throw new ArgumentException($"Unknown tool: {toolName}")
             };
             
@@ -1569,7 +1665,9 @@ public class MCPService
             name = s.Name,
             type = "subcircuit",
             nodes = s.Nodes ?? new List<string>(),
-            node_count = s.Nodes?.Count ?? 0
+            node_count = s.Nodes?.Count ?? 0,
+            metadata = includeParameters ? (s.Metadata ?? new Dictionary<string, string>()) : null,
+            ts_parameters = includeParameters ? (s.TsParameters ?? new Dictionary<string, double>()) : null
         }).ToList();
 
         // Build response message
@@ -3484,6 +3582,91 @@ public class MCPService
         }
     }
 
+    private async Task<MCPToolResult> ReindexLibraries(JsonElement arguments)
+    {
+        try
+        {
+            // Check if library service is configured
+            if (_libraryService == null)
+            {
+                return new MCPToolResult
+                {
+                    Content = new List<MCPContent>
+                    {
+                        new MCPContent
+                        {
+                            Type = "text",
+                            Text = JsonSerializer.Serialize(new
+                            {
+                                error = "Library service is not configured",
+                                message = "Library service is not available. Configure LibraryPaths in MCPServerConfig to enable library indexing."
+                            }, new JsonSerializerOptions { WriteIndented = true })
+                        }
+                    }
+                };
+            }
+
+            if (_config.LibraryPaths == null || !_config.LibraryPaths.Any())
+            {
+                return new MCPToolResult
+                {
+                    Content = new List<MCPContent>
+                    {
+                        new MCPContent
+                        {
+                            Type = "text",
+                            Text = JsonSerializer.Serialize(new
+                            {
+                                error = "No library paths configured",
+                                message = "No library paths are configured. Set MCPServerConfig.LibraryPaths to specify directories containing .lib files."
+                            }, new JsonSerializerOptions { WriteIndented = true })
+                        }
+                    }
+                };
+            }
+
+            // Re-index libraries
+            _libraryService.IndexLibraries(_config.LibraryPaths);
+
+            return new MCPToolResult
+            {
+                Content = new List<MCPContent>
+                {
+                    new MCPContent
+                    {
+                        Type = "text",
+                        Text = JsonSerializer.Serialize(new
+                        {
+                            success = true,
+                            message = "Libraries re-indexed successfully",
+                            library_paths = _config.LibraryPaths,
+                            note = "All .lib files have been re-parsed and the speaker database has been updated with corrected metadata."
+                        }, new JsonSerializerOptions { WriteIndented = true })
+                    }
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Re-index libraries failed: {Message}", ex.Message);
+            return new MCPToolResult
+            {
+                Content = new List<MCPContent>
+                {
+                    new MCPContent
+                    {
+                        Type = "text",
+                        Text = JsonSerializer.Serialize(new
+                        {
+                            error = "Re-index failed",
+                            message = $"Failed to re-index libraries: {ex.Message}"
+                        }, new JsonSerializerOptions { WriteIndented = true })
+                    }
+                }
+            };
+        }
+    }
+
     private async Task<MCPToolResult> ImportNetlist(JsonElement arguments)
     {
         if (!arguments.TryGetProperty("netlist", out var netlistElement))
@@ -3581,6 +3764,603 @@ public class MCPService
             _logger?.LogError(ex, "Netlist import failed with unexpected error: {Message}", ex.Message);
             throw new InvalidOperationException($"Netlist import failed: {ex.Message}", ex);
         }
+    }
+
+    private async Task<MCPToolResult> SearchSpeakersByParameters(JsonElement arguments)
+    {
+        if (_speakerDatabaseService == null)
+        {
+            return new MCPToolResult
+            {
+                Content = new List<MCPContent>
+                {
+                    new MCPContent
+                    {
+                        Type = "text",
+                        Text = JsonSerializer.Serialize(new
+                        {
+                            error = "Speaker database service is not configured",
+                            message = "Speaker database service is not available. To enable speaker search, configure ISpeakerDatabaseService in dependency injection."
+                        }, new JsonSerializerOptions { WriteIndented = true })
+                    }
+                }
+            };
+        }
+
+        try
+        {
+            // Parse search parameters
+            var parameters = new SpeakerSearchParameters();
+
+            if (arguments.TryGetProperty("driver_type", out var driverTypeElement) && driverTypeElement.ValueKind == JsonValueKind.Array)
+            {
+                parameters.DriverType = driverTypeElement.EnumerateArray()
+                    .Select(e => e.GetString())
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .ToList()!;
+            }
+
+            if (arguments.TryGetProperty("diameter_min", out var diameterMinElement) && diameterMinElement.ValueKind == JsonValueKind.Number)
+            {
+                parameters.DiameterMin = diameterMinElement.GetDouble();
+            }
+
+            if (arguments.TryGetProperty("diameter_max", out var diameterMaxElement) && diameterMaxElement.ValueKind == JsonValueKind.Number)
+            {
+                parameters.DiameterMax = diameterMaxElement.GetDouble();
+            }
+
+            if (arguments.TryGetProperty("impedance", out var impedanceElement) && impedanceElement.ValueKind == JsonValueKind.Number)
+            {
+                parameters.Impedance = impedanceElement.GetInt32();
+            }
+
+            if (arguments.TryGetProperty("fs_min", out var fsMinElement) && fsMinElement.ValueKind == JsonValueKind.Number)
+            {
+                parameters.FsMin = fsMinElement.GetDouble();
+            }
+
+            if (arguments.TryGetProperty("fs_max", out var fsMaxElement) && fsMaxElement.ValueKind == JsonValueKind.Number)
+            {
+                parameters.FsMax = fsMaxElement.GetDouble();
+            }
+
+            if (arguments.TryGetProperty("qts_min", out var qtsMinElement) && qtsMinElement.ValueKind == JsonValueKind.Number)
+            {
+                parameters.QtsMin = qtsMinElement.GetDouble();
+            }
+
+            if (arguments.TryGetProperty("qts_max", out var qtsMaxElement) && qtsMaxElement.ValueKind == JsonValueKind.Number)
+            {
+                parameters.QtsMax = qtsMaxElement.GetDouble();
+            }
+
+            if (arguments.TryGetProperty("qes_min", out var qesMinElement) && qesMinElement.ValueKind == JsonValueKind.Number)
+            {
+                parameters.QesMin = qesMinElement.GetDouble();
+            }
+
+            if (arguments.TryGetProperty("qes_max", out var qesMaxElement) && qesMaxElement.ValueKind == JsonValueKind.Number)
+            {
+                parameters.QesMax = qesMaxElement.GetDouble();
+            }
+
+            if (arguments.TryGetProperty("qms_min", out var qmsMinElement) && qmsMinElement.ValueKind == JsonValueKind.Number)
+            {
+                parameters.QmsMin = qmsMinElement.GetDouble();
+            }
+
+            if (arguments.TryGetProperty("qms_max", out var qmsMaxElement) && qmsMaxElement.ValueKind == JsonValueKind.Number)
+            {
+                parameters.QmsMax = qmsMaxElement.GetDouble();
+            }
+
+            if (arguments.TryGetProperty("vas_min", out var vasMinElement) && vasMinElement.ValueKind == JsonValueKind.Number)
+            {
+                parameters.VasMin = vasMinElement.GetDouble();
+            }
+
+            if (arguments.TryGetProperty("vas_max", out var vasMaxElement) && vasMaxElement.ValueKind == JsonValueKind.Number)
+            {
+                parameters.VasMax = vasMaxElement.GetDouble();
+            }
+
+            if (arguments.TryGetProperty("sensitivity_min", out var sensitivityMinElement) && sensitivityMinElement.ValueKind == JsonValueKind.Number)
+            {
+                parameters.SensitivityMin = sensitivityMinElement.GetDouble();
+            }
+
+            if (arguments.TryGetProperty("sensitivity_max", out var sensitivityMaxElement) && sensitivityMaxElement.ValueKind == JsonValueKind.Number)
+            {
+                parameters.SensitivityMax = sensitivityMaxElement.GetDouble();
+            }
+
+            if (arguments.TryGetProperty("power_min", out var powerMinElement) && powerMinElement.ValueKind == JsonValueKind.Number)
+            {
+                parameters.PowerMin = powerMinElement.GetInt32();
+            }
+
+            if (arguments.TryGetProperty("power_max", out var powerMaxElement) && powerMaxElement.ValueKind == JsonValueKind.Number)
+            {
+                parameters.PowerMax = powerMaxElement.GetInt32();
+            }
+
+            if (arguments.TryGetProperty("xmax_min", out var xmaxMinElement) && xmaxMinElement.ValueKind == JsonValueKind.Number)
+            {
+                parameters.XmaxMin = xmaxMinElement.GetDouble();
+            }
+
+            if (arguments.TryGetProperty("xmax_max", out var xmaxMaxElement) && xmaxMaxElement.ValueKind == JsonValueKind.Number)
+            {
+                parameters.XmaxMax = xmaxMaxElement.GetDouble();
+            }
+
+            if (arguments.TryGetProperty("manufacturer", out var manufacturerElement) && manufacturerElement.ValueKind == JsonValueKind.String)
+            {
+                parameters.Manufacturer = manufacturerElement.GetString();
+            }
+
+            if (arguments.TryGetProperty("price_max", out var priceMaxElement) && priceMaxElement.ValueKind == JsonValueKind.Number)
+            {
+                parameters.PriceMax = priceMaxElement.GetDouble();
+            }
+
+            if (arguments.TryGetProperty("sort_by", out var sortByElement) && sortByElement.ValueKind == JsonValueKind.String)
+            {
+                parameters.SortBy = sortByElement.GetString();
+            }
+
+            if (arguments.TryGetProperty("sort_direction", out var sortDirElement) && sortDirElement.ValueKind == JsonValueKind.String)
+            {
+                parameters.SortDirection = sortDirElement.GetString();
+            }
+
+            if (arguments.TryGetProperty("limit", out var limitElement) && limitElement.ValueKind == JsonValueKind.Number)
+            {
+                parameters.Limit = Math.Max(1, Math.Min(1000, limitElement.GetInt32()));
+            }
+
+            // Perform search
+            var results = _speakerDatabaseService.SearchSpeakersByParameters(parameters);
+
+            // Format response
+            var response = new
+            {
+                count = results.Count,
+                results = results.Select(r => new
+                {
+                    subcircuit_name = r.SubcircuitName,
+                    manufacturer = r.Manufacturer,
+                    part_number = r.PartNumber,
+                    type = r.Type,
+                    diameter = r.Diameter,
+                    impedance = r.Impedance,
+                    ts_parameters = r.TsParameters,
+                    sensitivity = r.Sensitivity,
+                    power_rms = r.PowerRms,
+                    price = r.Price
+                }).ToList()
+            };
+
+            return new MCPToolResult
+            {
+                Content = new List<MCPContent>
+                {
+                    new MCPContent
+                    {
+                        Type = "text",
+                        Text = JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true })
+                    }
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Speaker search failed: {Message}", ex.Message);
+            throw new InvalidOperationException($"Speaker search failed: {ex.Message}", ex);
+        }
+    }
+
+    private async Task<MCPToolResult> CalculateEnclosureDesign(JsonElement arguments)
+    {
+        if (_speakerDatabaseService == null || _enclosureDesignService == null)
+        {
+            return new MCPToolResult
+            {
+                Content = new List<MCPContent>
+                {
+                    new MCPContent
+                    {
+                        Type = "text",
+                        Text = JsonSerializer.Serialize(new
+                        {
+                            error = "Enclosure design service is not configured",
+                            message = "Speaker database service or enclosure design service is not available. To enable enclosure design, configure ISpeakerDatabaseService and IEnclosureDesignService in dependency injection."
+                        }, new JsonSerializerOptions { WriteIndented = true })
+                    }
+                }
+            };
+        }
+
+        try
+        {
+            // Parse arguments
+            if (!arguments.TryGetProperty("model", out var modelElement) || modelElement.ValueKind != JsonValueKind.String)
+            {
+                throw new ArgumentException("'model' parameter is required and must be a string");
+            }
+
+            var modelName = modelElement.GetString();
+            if (string.IsNullOrWhiteSpace(modelName))
+            {
+                throw new ArgumentException("'model' parameter cannot be empty");
+            }
+
+            if (!arguments.TryGetProperty("enclosure_type", out var enclosureTypeElement) || enclosureTypeElement.ValueKind != JsonValueKind.String)
+            {
+                throw new ArgumentException("'enclosure_type' parameter is required and must be 'sealed' or 'vented'");
+            }
+
+            var enclosureType = enclosureTypeElement.GetString()?.ToLowerInvariant();
+            if (enclosureType != "sealed" && enclosureType != "vented")
+            {
+                throw new ArgumentException("'enclosure_type' must be 'sealed' or 'vented'");
+            }
+
+            // Look up speaker from database
+            var speaker = _speakerDatabaseService.GetSpeakerByName(modelName);
+            if (speaker == null)
+            {
+                return new MCPToolResult
+                {
+                    Content = new List<MCPContent>
+                    {
+                        new MCPContent
+                        {
+                            Type = "text",
+                            Text = JsonSerializer.Serialize(new
+                            {
+                                error = "Speaker not found",
+                                message = $"Speaker model '{modelName}' not found in database. Use search_speakers_by_parameters to find available speakers."
+                            }, new JsonSerializerOptions { WriteIndented = true })
+                        }
+                    }
+                };
+            }
+
+            // Convert SpeakerSearchResult to SpeakerTsParameters
+            var tsParams = new SpeakerTsParameters
+            {
+                Fs = speaker.TsParameters.TryGetValue("FS", out var fs) ? fs : 0,
+                Qts = speaker.TsParameters.TryGetValue("QTS", out var qts) ? qts : 0,
+                Qes = speaker.TsParameters.TryGetValue("QES", out var qes) ? qes : 0,
+                Qms = speaker.TsParameters.TryGetValue("QMS", out var qms) ? qms : 0,
+                Vas = speaker.TsParameters.TryGetValue("VAS", out var vas) ? vas : 0,
+                Re = speaker.TsParameters.TryGetValue("RE", out var re) ? re : 0,
+                Le = speaker.TsParameters.TryGetValue("LE", out var le) ? le : 0,
+                Bl = speaker.TsParameters.TryGetValue("BL", out var bl) ? bl : 0,
+                Xmax = speaker.TsParameters.TryGetValue("XMAX", out var xmax) ? xmax : 0,
+                Mms = speaker.TsParameters.TryGetValue("MMS", out var mms) ? mms : 0,
+                Cms = speaker.TsParameters.TryGetValue("CMS", out var cms) ? cms : 0,
+                Sd = speaker.TsParameters.TryGetValue("SD", out var sd) ? sd : 0
+            };
+
+            // Validate required T/S parameters
+            if (tsParams.Fs <= 0 || tsParams.Qts <= 0 || tsParams.Vas <= 0)
+            {
+                return new MCPToolResult
+                {
+                    Content = new List<MCPContent>
+                    {
+                        new MCPContent
+                        {
+                            Type = "text",
+                            Text = JsonSerializer.Serialize(new
+                            {
+                                error = "Incomplete T/S parameters",
+                                message = $"Speaker '{modelName}' is missing required T/S parameters (FS, QTS, VAS). Found: FS={tsParams.Fs}, QTS={tsParams.Qts}, VAS={tsParams.Vas}"
+                            }, new JsonSerializerOptions { WriteIndented = true })
+                        }
+                    }
+                };
+            }
+
+            object designResult;
+
+            if (enclosureType == "sealed")
+            {
+                // Get target Qtc (default to Butterworth 0.707)
+                double targetQtc = 0.707;
+                if (arguments.TryGetProperty("target_qtc", out var qtcElement) && qtcElement.ValueKind == JsonValueKind.Number)
+                {
+                    targetQtc = qtcElement.GetDouble();
+                }
+
+                var sealedDesign = _enclosureDesignService.CalculateSealedBox(tsParams, targetQtc);
+                designResult = new
+                {
+                    model = modelName,
+                    manufacturer = speaker.Manufacturer,
+                    enclosure_type = "sealed",
+                    target_qtc = targetQtc,
+                    volume_liters = Math.Round(sealedDesign.VolumeLiters, 2),
+                    volume_cubic_feet = Math.Round(sealedDesign.VolumeCubicFeet, 3),
+                    qtc = Math.Round(sealedDesign.Qtc, 3),
+                    f3_hz = Math.Round(sealedDesign.F3, 2),
+                    fc_hz = Math.Round(sealedDesign.Fc, 2)
+                };
+            }
+            else // vented
+            {
+                // Get alignment (default to QB3)
+                string alignment = "QB3";
+                if (arguments.TryGetProperty("alignment", out var alignmentElement) && alignmentElement.ValueKind == JsonValueKind.String)
+                {
+                    alignment = alignmentElement.GetString() ?? "QB3";
+                }
+
+                var ventedDesign = _enclosureDesignService.CalculateVentedBox(tsParams, alignment);
+                designResult = new
+                {
+                    model = modelName,
+                    manufacturer = speaker.Manufacturer,
+                    enclosure_type = "vented",
+                    alignment = alignment,
+                    volume_liters = Math.Round(ventedDesign.VolumeLiters, 2),
+                    volume_cubic_feet = Math.Round(ventedDesign.VolumeCubicFeet, 3),
+                    tuning_frequency_hz = Math.Round(ventedDesign.Fb, 2),
+                    f3_hz = Math.Round(ventedDesign.F3, 2),
+                    port = new
+                    {
+                        diameter_inches = Math.Round(ventedDesign.PortDiameterInches, 2),
+                        diameter_cm = Math.Round(ventedDesign.PortDiameterCm, 2),
+                        length_inches = Math.Round(ventedDesign.PortLengthInches, 2),
+                        length_cm = Math.Round(ventedDesign.PortLengthCm, 2)
+                    },
+                    warnings = !string.IsNullOrWhiteSpace(ventedDesign.PortVelocityWarning) 
+                        ? new[] { ventedDesign.PortVelocityWarning } 
+                        : Array.Empty<string>()
+                };
+            }
+
+            return new MCPToolResult
+            {
+                Content = new List<MCPContent>
+                {
+                    new MCPContent
+                    {
+                        Type = "text",
+                        Text = JsonSerializer.Serialize(designResult, new JsonSerializerOptions { WriteIndented = true })
+                    }
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Enclosure design calculation failed: {Message}", ex.Message);
+            throw new InvalidOperationException($"Enclosure design calculation failed: {ex.Message}", ex);
+        }
+    }
+
+    private async Task<MCPToolResult> CheckCrossoverCompatibility(JsonElement arguments)
+    {
+        if (_speakerDatabaseService == null || _crossoverCompatibilityService == null)
+        {
+            return new MCPToolResult
+            {
+                Content = new List<MCPContent>
+                {
+                    new MCPContent
+                    {
+                        Type = "text",
+                        Text = JsonSerializer.Serialize(new
+                        {
+                            error = "Crossover compatibility service is not configured",
+                            message = "Speaker database service or crossover compatibility service is not available. To enable crossover compatibility checking, configure ISpeakerDatabaseService and ICrossoverCompatibilityService in dependency injection."
+                        }, new JsonSerializerOptions { WriteIndented = true })
+                    }
+                }
+            };
+        }
+
+        try
+        {
+            // Parse arguments
+            if (!arguments.TryGetProperty("woofer_model", out var wooferModelElement) || wooferModelElement.ValueKind != JsonValueKind.String)
+            {
+                throw new ArgumentException("'woofer_model' parameter is required and must be a string");
+            }
+
+            if (!arguments.TryGetProperty("tweeter_model", out var tweeterModelElement) || tweeterModelElement.ValueKind != JsonValueKind.String)
+            {
+                throw new ArgumentException("'tweeter_model' parameter is required and must be a string");
+            }
+
+            if (!arguments.TryGetProperty("crossover_frequency", out var freqElement) || freqElement.ValueKind != JsonValueKind.Number)
+            {
+                throw new ArgumentException("'crossover_frequency' parameter is required and must be a number");
+            }
+
+            if (!arguments.TryGetProperty("crossover_order", out var orderElement) || orderElement.ValueKind != JsonValueKind.Number)
+            {
+                throw new ArgumentException("'crossover_order' parameter is required and must be an integer (1-4)");
+            }
+
+            var wooferModel = wooferModelElement.GetString();
+            var tweeterModel = tweeterModelElement.GetString();
+            var crossoverFreq = freqElement.GetDouble();
+            var crossoverOrder = orderElement.GetInt32();
+
+            if (string.IsNullOrWhiteSpace(wooferModel) || string.IsNullOrWhiteSpace(tweeterModel))
+            {
+                throw new ArgumentException("Woofer and tweeter model names cannot be empty");
+            }
+
+            if (crossoverFreq <= 0)
+            {
+                throw new ArgumentException("Crossover frequency must be positive");
+            }
+
+            if (crossoverOrder < 1 || crossoverOrder > 4)
+            {
+                throw new ArgumentException("Crossover order must be between 1 and 4");
+            }
+
+            // Look up speakers from database
+            var woofer = _speakerDatabaseService.GetSpeakerByName(wooferModel);
+            if (woofer == null)
+            {
+                return new MCPToolResult
+                {
+                    Content = new List<MCPContent>
+                    {
+                        new MCPContent
+                        {
+                            Type = "text",
+                            Text = JsonSerializer.Serialize(new
+                            {
+                                error = "Woofer not found",
+                                message = $"Woofer model '{wooferModel}' not found in database. Use search_speakers_by_parameters to find available speakers."
+                            }, new JsonSerializerOptions { WriteIndented = true })
+                        }
+                    }
+                };
+            }
+
+            var tweeter = _speakerDatabaseService.GetSpeakerByName(tweeterModel);
+            if (tweeter == null)
+            {
+                return new MCPToolResult
+                {
+                    Content = new List<MCPContent>
+                    {
+                        new MCPContent
+                        {
+                            Type = "text",
+                            Text = JsonSerializer.Serialize(new
+                            {
+                                error = "Tweeter not found",
+                                message = $"Tweeter model '{tweeterModel}' not found in database. Use search_speakers_by_parameters to find available speakers."
+                            }, new JsonSerializerOptions { WriteIndented = true })
+                        }
+                    }
+                };
+            }
+
+            // Convert SpeakerSearchResult to SpeakerTsParameters
+            var wooferTs = ConvertToTsParameters(woofer);
+            var tweeterTs = ConvertToTsParameters(tweeter);
+
+            // Validate required T/S parameters
+            if (wooferTs.Fs <= 0 || wooferTs.Sd <= 0)
+            {
+                return new MCPToolResult
+                {
+                    Content = new List<MCPContent>
+                    {
+                        new MCPContent
+                        {
+                            Type = "text",
+                            Text = JsonSerializer.Serialize(new
+                            {
+                                error = "Incomplete woofer T/S parameters",
+                                message = $"Woofer '{wooferModel}' is missing required T/S parameters (FS, SD)."
+                            }, new JsonSerializerOptions { WriteIndented = true })
+                        }
+                    }
+                };
+            }
+
+            if (tweeterTs.Fs <= 0)
+            {
+                return new MCPToolResult
+                {
+                    Content = new List<MCPContent>
+                    {
+                        new MCPContent
+                        {
+                            Type = "text",
+                            Text = JsonSerializer.Serialize(new
+                            {
+                                error = "Incomplete tweeter T/S parameters",
+                                message = $"Tweeter '{tweeterModel}' is missing required T/S parameter (FS)."
+                            }, new JsonSerializerOptions { WriteIndented = true })
+                        }
+                    }
+                };
+            }
+
+            // Check compatibility
+            // Pass sensitivity and impedance from metadata (not estimated from T/S parameters)
+            var result = _crossoverCompatibilityService.CheckCompatibility(
+                wooferTs, 
+                tweeterTs, 
+                crossoverFreq, 
+                crossoverOrder,
+                wooferSensitivity: woofer.Sensitivity,
+                tweeterSensitivity: tweeter.Sensitivity,
+                wooferImpedance: woofer.Impedance.HasValue ? (double?)woofer.Impedance.Value : null,
+                tweeterImpedance: tweeter.Impedance.HasValue ? (double?)tweeter.Impedance.Value : null);
+
+            // Format response
+            var response = new
+            {
+                woofer_model = wooferModel,
+                woofer_manufacturer = woofer.Manufacturer,
+                tweeter_model = tweeterModel,
+                tweeter_manufacturer = tweeter.Manufacturer,
+                crossover_frequency_hz = crossoverFreq,
+                crossover_order = crossoverOrder,
+                compatibility_score = Math.Round(result.CompatibilityScore, 1),
+                woofer_beaming_ok = result.WooferBeamingOk,
+                max_crossover_frequency_hz = Math.Round(result.MaxCrossoverFrequency, 1),
+                tweeter_fs_ok = result.TweeterFsOk,
+                min_crossover_frequency_hz = Math.Round(result.MinCrossoverFrequency, 1),
+                sensitivity_difference_db = Math.Round(result.SensitivityDifference, 1),
+                sensitivity_match_ok = result.SensitivityMatchOk,
+                impedance_match_ok = result.ImpedanceMatchOk,
+                woofer_impedance_ohms = result.WooferImpedance.HasValue ? Math.Round(result.WooferImpedance.Value, 1) : (double?)null,
+                tweeter_impedance_ohms = result.TweeterImpedance.HasValue ? Math.Round(result.TweeterImpedance.Value, 1) : (double?)null,
+                recommendations = result.Recommendations,
+                warnings = result.Warnings
+            };
+
+            return new MCPToolResult
+            {
+                Content = new List<MCPContent>
+                {
+                    new MCPContent
+                    {
+                        Type = "text",
+                        Text = JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true })
+                    }
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Crossover compatibility check failed: {Message}", ex.Message);
+            throw new InvalidOperationException($"Crossover compatibility check failed: {ex.Message}", ex);
+        }
+    }
+
+    private static SpeakerTsParameters ConvertToTsParameters(SpeakerSearchResult speaker)
+    {
+        return new SpeakerTsParameters
+        {
+            Fs = speaker.TsParameters.TryGetValue("FS", out var fs) ? fs : 0,
+            Qts = speaker.TsParameters.TryGetValue("QTS", out var qts) ? qts : 0,
+            Qes = speaker.TsParameters.TryGetValue("QES", out var qes) ? qes : 0,
+            Qms = speaker.TsParameters.TryGetValue("QMS", out var qms) ? qms : 0,
+            Vas = speaker.TsParameters.TryGetValue("VAS", out var vas) ? vas : 0,
+            Re = speaker.TsParameters.TryGetValue("RE", out var re) ? re : 0,
+            Le = speaker.TsParameters.TryGetValue("LE", out var le) ? le : 0,
+            Bl = speaker.TsParameters.TryGetValue("BL", out var bl) ? bl : 0,
+            Xmax = speaker.TsParameters.TryGetValue("XMAX", out var xmax) ? xmax : 0,
+            Mms = speaker.TsParameters.TryGetValue("MMS", out var mms) ? mms : 0,
+            Cms = speaker.TsParameters.TryGetValue("CMS", out var cms) ? cms : 0,
+            Sd = speaker.TsParameters.TryGetValue("SD", out var sd) ? sd : 0
+        };
     }
 }
 

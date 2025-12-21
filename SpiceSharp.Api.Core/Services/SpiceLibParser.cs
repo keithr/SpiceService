@@ -246,16 +246,29 @@ public class SpiceLibParser
 
         var lines = libContent.Split('\n');
         var currentSubcircuitLines = new List<string>();
+        var currentCommentLines = new List<string>();
         string? currentSubcircuitName = null;
         List<string>? currentSubcircuitNodes = null;
+        Dictionary<string, string>? currentMetadata = null;
+        Dictionary<string, double>? currentTsParameters = null;
         bool inSubcircuit = false;
 
         foreach (var line in lines)
         {
             var trimmed = line.Trim();
 
-            // Skip empty lines and comment-only lines
-            if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith("*"))
+            // Collect comment lines before .SUBCKT
+            if (trimmed.StartsWith("*"))
+            {
+                if (!inSubcircuit)
+                {
+                    currentCommentLines.Add(trimmed);
+                }
+                continue;
+            }
+
+            // Skip empty lines
+            if (string.IsNullOrWhiteSpace(trimmed))
                 continue;
 
             // Check if this is a .SUBCKT line
@@ -264,7 +277,7 @@ public class SpiceLibParser
                 // If we have an incomplete subcircuit, save it
                 if (inSubcircuit && currentSubcircuitName != null && currentSubcircuitNodes != null)
                 {
-                    var subcircuit = CreateSubcircuitDefinition(currentSubcircuitName, currentSubcircuitNodes, currentSubcircuitLines);
+                    var subcircuit = CreateSubcircuitDefinition(currentSubcircuitName, currentSubcircuitNodes, currentSubcircuitLines, currentMetadata, currentTsParameters);
                     if (subcircuit != null)
                         subcircuits.Add(subcircuit);
                 }
@@ -273,6 +286,12 @@ public class SpiceLibParser
                 var match = SubcircuitLineRegex.Match(trimmed);
                 if (match.Success)
                 {
+                    // Parse comment metadata before this .SUBCKT
+                    var (metadata, tsParameters) = ParseCommentMetadata(currentCommentLines);
+                    currentMetadata = metadata;
+                    currentTsParameters = tsParameters;
+                    currentCommentLines.Clear();
+
                     currentSubcircuitName = match.Groups[1].Value;
                     var nodesText = match.Groups[2].Value;
                     // Remove inline comments
@@ -291,7 +310,7 @@ public class SpiceLibParser
             {
                 if (inSubcircuit && currentSubcircuitName != null && currentSubcircuitNodes != null)
                 {
-                    var subcircuit = CreateSubcircuitDefinition(currentSubcircuitName, currentSubcircuitNodes, currentSubcircuitLines);
+                    var subcircuit = CreateSubcircuitDefinition(currentSubcircuitName, currentSubcircuitNodes, currentSubcircuitLines, currentMetadata, currentTsParameters);
                     if (subcircuit != null)
                         subcircuits.Add(subcircuit);
                 }
@@ -299,6 +318,9 @@ public class SpiceLibParser
                 currentSubcircuitName = null;
                 currentSubcircuitNodes = null;
                 currentSubcircuitLines.Clear();
+                currentCommentLines.Clear();
+                currentMetadata = null;
+                currentTsParameters = null;
             }
             // Check if this is a continuation line (starts with +)
             else if (trimmed.StartsWith("+", StringComparison.OrdinalIgnoreCase))
@@ -340,7 +362,7 @@ public class SpiceLibParser
         // Process any remaining incomplete subcircuit
         if (inSubcircuit && currentSubcircuitName != null && currentSubcircuitNodes != null)
         {
-            var subcircuit = CreateSubcircuitDefinition(currentSubcircuitName, currentSubcircuitNodes, currentSubcircuitLines);
+            var subcircuit = CreateSubcircuitDefinition(currentSubcircuitName, currentSubcircuitNodes, currentSubcircuitLines, currentMetadata, currentTsParameters);
             if (subcircuit != null)
                 subcircuits.Add(subcircuit);
         }
@@ -349,9 +371,84 @@ public class SpiceLibParser
     }
 
     /// <summary>
+    /// Parses comment lines to extract metadata and T/S parameters
+    /// </summary>
+    /// <param name="commentLines">List of comment lines (starting with *)</param>
+    /// <returns>Tuple of (metadata dictionary, T/S parameters dictionary)</returns>
+    private (Dictionary<string, string> metadata, Dictionary<string, double> tsParameters) ParseCommentMetadata(List<string> commentLines)
+    {
+        var metadata = new Dictionary<string, string>();
+        var tsParameters = new Dictionary<string, double>();
+
+        // T/S parameter names (numeric values)
+        var tsParameterNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "FS", "QTS", "QES", "QMS", "VAS", "RE", "LE", "BL", "XMAX", "MMS", "CMS", "SD"
+        };
+
+        // Metadata field names (string values)
+        var metadataFieldNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "MANUFACTURER", "PART_NUMBER", "TYPE", "DIAMETER", "IMPEDANCE", "POWER_RMS", "POWER_MAX", "SENSITIVITY", "PRICE"
+        };
+
+        foreach (var commentLine in commentLines)
+        {
+            // Remove leading * and trim
+            var line = commentLine.TrimStart('*').Trim();
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+
+            // Parse format: KEY: VALUE (handle multiple colons, spaces, etc.)
+            var colonIndex = line.IndexOf(':');
+            if (colonIndex < 0)
+                continue;
+
+            var key = line.Substring(0, colonIndex).Trim();
+            var value = line.Substring(colonIndex + 1).Trim();
+
+            // Handle cases where value might have units or additional info after a space
+            // e.g., "SENSITIVITY: 88.5 dB" -> extract "88.5"
+            if (value.Contains(' '))
+            {
+                var firstPart = value.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+                if (!string.IsNullOrWhiteSpace(firstPart))
+                {
+                    value = firstPart;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value))
+                continue;
+
+            // Check if it's a T/S parameter
+            if (tsParameterNames.Contains(key))
+            {
+                if (double.TryParse(value, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var numericValue))
+                {
+                    tsParameters[key.ToUpper()] = numericValue;
+                }
+            }
+            // Check if it's a metadata field
+            else if (metadataFieldNames.Contains(key))
+            {
+                metadata[key.ToUpper()] = value;
+            }
+            // Otherwise, treat as generic metadata
+            else
+            {
+                metadata[key.ToUpper()] = value;
+            }
+        }
+
+        return (metadata, tsParameters);
+    }
+
+    /// <summary>
     /// Creates a SubcircuitDefinition from parsed data
     /// </summary>
-    private SubcircuitDefinition? CreateSubcircuitDefinition(string name, List<string> nodes, List<string> definitionLines)
+    private SubcircuitDefinition? CreateSubcircuitDefinition(string name, List<string> nodes, List<string> definitionLines, Dictionary<string, string>? metadata, Dictionary<string, double>? tsParameters)
     {
         if (string.IsNullOrWhiteSpace(name) || nodes == null || nodes.Count == 0)
             return null;
@@ -375,7 +472,9 @@ public class SpiceLibParser
         {
             Name = name,
             Nodes = nodes,
-            Definition = definition
+            Definition = definition,
+            Metadata = metadata ?? new Dictionary<string, string>(),
+            TsParameters = tsParameters ?? new Dictionary<string, double>()
         };
     }
 }

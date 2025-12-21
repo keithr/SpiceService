@@ -293,6 +293,7 @@ Features
 - Semiconductors: BJT (NPN/PNP), MOSFET (N/P), JFET (N/P)
 - Switches: Voltage-controlled and current-controlled switches
 - Mutual Inductance (Transformers)
+- **Speaker Subcircuits**: Loudspeaker drivers with Thiele-Small parameters and metadata (see [Speaker Design Tools](#speaker-design-tools))
 
 ### Analysis Types
 - DC Operating Point
@@ -567,6 +568,11 @@ The server provides a comprehensive set of tools organized into categories:
 #### Library Search
 - `search_libraries` - Search component libraries for parts
 - `get_library_info` - Get information about library files
+
+#### Speaker Design Tools
+- `search_speakers_by_parameters` - Search speaker database by Thiele-Small parameters and specifications
+- `calculate_enclosure_design` - Calculate optimal speaker enclosure design (sealed or vented box)
+- `check_crossover_compatibility` - Check compatibility between woofer and tweeter for crossover design
 
 #### Service Management
 - `get_service_status` - Get current service status and configuration

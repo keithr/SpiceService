@@ -56,11 +56,7 @@ public partial class IDEConfigurationDialog : Form
         foreach (var ide in _detectedIDEs)
         {
             var displayText = ide.Name;
-            if (ide.RequiresManualSetup)
-            {
-                displayText += " (detected - manual setup required)";
-            }
-            else if (ide.IsInstalled)
+            if (ide.IsInstalled)
             {
                 displayText += " (detected)";
             }
@@ -71,8 +67,8 @@ public partial class IDEConfigurationDialog : Form
             
             var index = ideCheckedListBox.Items.Add(displayText);
             
-            // Set checked state for installed IDEs (except VS Code which requires manual setup)
-            if (ide.IsInstalled && !ide.RequiresManualSetup)
+            // Set checked state for installed IDEs (all IDEs including VS Code are now auto-configured)
+            if (ide.IsInstalled)
             {
                 ideCheckedListBox.SetItemChecked(index, ide.IsSelected);
             }
@@ -101,9 +97,9 @@ public partial class IDEConfigurationDialog : Form
     
     private void IdeCheckedListBox_ItemCheck(object? sender, ItemCheckEventArgs e)
     {
-        // Prevent checking items that are not installed or require manual setup
+        // Prevent checking items that are not installed
         var ide = _detectedIDEs[e.Index];
-        if (!ide.IsInstalled || ide.RequiresManualSetup)
+        if (!ide.IsInstalled)
         {
             e.NewValue = CheckState.Unchecked;
             return;
@@ -124,17 +120,12 @@ public partial class IDEConfigurationDialog : Form
     
     private void ApplyButton_Click(object? sender, EventArgs e)
     {
-        // Get selected IDEs (including VS Code if it was in the list, even if not checked)
+        // Get selected IDEs (all checked IDEs, including VS Code which is now auto-configured)
         var selectedIDEs = new List<DetectedIDE>();
         for (int i = 0; i < ideCheckedListBox.Items.Count; i++)
         {
             var ide = _detectedIDEs[i];
             if (ideCheckedListBox.GetItemChecked(i))
-            {
-                selectedIDEs.Add(ide);
-            }
-            // Also include VS Code if it's in the list (for manual setup instructions)
-            else if (ide.Name == "VS Code" && ide.RequiresManualSetup && ide.IsInstalled)
             {
                 selectedIDEs.Add(ide);
             }

@@ -17,7 +17,7 @@ public partial class IDEConfigurationSuccessDialog : Form
     private void InitializeDialog()
     {
         var hasErrors = _result.Errors.Count > 0;
-        var hasSuccess = _result.ConfiguredIDEs.Count > 0 || _result.VSCodeConfigJson != null;
+        var hasSuccess = _result.ConfiguredIDEs.Count > 0;
         
         if (hasErrors && hasSuccess)
         {
@@ -49,29 +49,10 @@ public partial class IDEConfigurationSuccessDialog : Form
             message.AppendLine();
         }
         
-        // VS Code section
-        if (_result.VSCodeConfigJson != null)
-        {
-            message.AppendLine("VS Code Configuration:");
-            message.AppendLine("VS Code uses workspace-level configs. Add this to your workspace's .vscode/mcp.json file:");
-            
-            // Set VS Code JSON in text box
-            vsCodeTextBox.Text = _result.VSCodeConfigJson;
-            vsCodeTextBox.Visible = true;
-            copyButton.Visible = true;
-            vsCodeLabel.Visible = true;
-            
-            // Adjust message label height to make room for VS Code section
-            messageLabel.Height = 180;
-            vsCodeLabel.Location = new System.Drawing.Point(0, 185);
-            vsCodeTextBox.Location = new System.Drawing.Point(0, 205);
-        }
-        else
-        {
-            vsCodeTextBox.Visible = false;
-            copyButton.Visible = false;
-            vsCodeLabel.Visible = false;
-        }
+        // VS Code is now auto-configured like other IDEs, no special UI needed
+        vsCodeTextBox.Visible = false;
+        copyButton.Visible = false;
+        vsCodeLabel.Visible = false;
         
         // Errors section
         if (_result.Errors.Count > 0)

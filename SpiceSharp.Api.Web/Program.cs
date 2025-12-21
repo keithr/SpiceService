@@ -91,6 +91,16 @@ else
 builder.Services.AddSingleton(mcpConfig);
 builder.Services.AddSingleton(discoveryConfig);
 builder.Services.AddSingleton<CircuitResultsCache>();
+
+// Register speaker database service (optional, for speaker search functionality)
+builder.Services.AddSingleton<ISpeakerDatabaseService, SpeakerDatabaseService>();
+
+// Register enclosure design service (optional, for enclosure design calculations)
+builder.Services.AddSingleton<IEnclosureDesignService, EnclosureDesignService>();
+
+// Register crossover compatibility service (optional, for crossover compatibility checking)
+builder.Services.AddSingleton<ICrossoverCompatibilityService, CrossoverCompatibilityService>();
+
 builder.Services.AddSingleton<MCPService>();
 builder.Services.AddSingleton<DiscoveryService>();
 

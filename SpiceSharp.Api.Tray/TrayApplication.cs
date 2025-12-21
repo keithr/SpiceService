@@ -153,11 +153,20 @@ public class TrayApplication : ApplicationContext
         var responseMeasurementService = new ResponseMeasurementService(resultsCache);
         var groupDelayService = new GroupDelayService(resultsCache);
         var netlistParser = new NetlistParser();
+        // Create speaker database service
+        var speakerDatabaseService = new SpeakerDatabaseService();
+        
+        // Create enclosure design service
+        var enclosureDesignService = new EnclosureDesignService();
+        
+        // Create crossover compatibility service
+        var crossoverCompatibilityService = new CrossoverCompatibilityService();
+        
         // Create library service if paths are configured
         ILibraryService? libraryService = null;
         if (_mcpConfig.LibraryPaths != null && _mcpConfig.LibraryPaths.Any())
         {
-            libraryService = new LibraryService();
+            libraryService = new LibraryService(speakerDatabaseService);
             libraryService.IndexLibraries(_mcpConfig.LibraryPaths);
         }
 
@@ -180,6 +189,9 @@ public class TrayApplication : ApplicationContext
             resultsCache,
             _mcpConfig,
             libraryService,
+            speakerDatabaseService,
+            enclosureDesignService,
+            crossoverCompatibilityService,
             mcpLogger);
         
         // Log startup

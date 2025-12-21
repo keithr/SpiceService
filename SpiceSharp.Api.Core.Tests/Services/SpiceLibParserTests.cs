@@ -466,4 +466,235 @@ R2 3 4 2K
         // Assert
         Assert.Empty(subcircuits);
     }
+
+    [Fact]
+    public void ParseSubcircuits_WithCommentMetadata_ExtractsCorrectly()
+    {
+        // Arrange
+        var libContent = @"
+* SPICE Model: 264_1148
+* MANUFACTURER: Peerless
+* TYPE: woofers
+* FS: 42.18
+* QTS: 0.35
+* QES: 0.38
+* VAS: 11.2
+* RE: 2.73
+* PRICE: 59.98
+.SUBCKT 264_1148 PLUS MINUS
+Re PLUS 1 2.73
+Le 1 2 0.65mH
+.ENDS
+";
+        var parser = new SpiceLibParser();
+
+        // Act
+        var subcircuits = parser.ParseSubcircuits(libContent);
+
+        // Assert
+        Assert.Single(subcircuits);
+        var sub = subcircuits.First();
+        Assert.Equal("264_1148", sub.Name);
+        Assert.Equal("Peerless", sub.Metadata["MANUFACTURER"]);
+        Assert.Equal("woofers", sub.Metadata["TYPE"]);
+        Assert.Equal(42.18, sub.TsParameters["FS"]);
+        Assert.Equal(0.35, sub.TsParameters["QTS"]);
+        Assert.Equal(0.38, sub.TsParameters["QES"]);
+        Assert.Equal(11.2, sub.TsParameters["VAS"]);
+        Assert.Equal(2.73, sub.TsParameters["RE"]);
+        Assert.Equal("59.98", sub.Metadata["PRICE"]);
+    }
+
+    [Fact]
+    public void ParseSubcircuits_ExtractsAllTsParameters()
+    {
+        // Arrange
+        var libContent = @"
+* FS: 42.18
+* QTS: 0.35
+* QES: 0.38
+* QMS: 4.92
+* VAS: 11.2
+* RE: 2.73
+* LE: 0.65
+* BL: 8.27
+* XMAX: 8.2
+* MMS: 35.3
+* CMS: 0.4667
+* SD: 2.0
+.SUBCKT test_speaker PLUS MINUS
+Re PLUS 1 2.73
+.ENDS
+";
+        var parser = new SpiceLibParser();
+
+        // Act
+        var subcircuits = parser.ParseSubcircuits(libContent);
+
+        // Assert
+        Assert.Single(subcircuits);
+        var sub = subcircuits.First();
+        Assert.Equal(42.18, sub.TsParameters["FS"]);
+        Assert.Equal(0.35, sub.TsParameters["QTS"]);
+        Assert.Equal(0.38, sub.TsParameters["QES"]);
+        Assert.Equal(4.92, sub.TsParameters["QMS"]);
+        Assert.Equal(11.2, sub.TsParameters["VAS"]);
+        Assert.Equal(2.73, sub.TsParameters["RE"]);
+        Assert.Equal(0.65, sub.TsParameters["LE"]);
+        Assert.Equal(8.27, sub.TsParameters["BL"]);
+        Assert.Equal(8.2, sub.TsParameters["XMAX"]);
+        Assert.Equal(35.3, sub.TsParameters["MMS"]);
+        Assert.Equal(0.4667, sub.TsParameters["CMS"]);
+        Assert.Equal(2.0, sub.TsParameters["SD"]);
+    }
+
+    [Fact]
+    public void ParseSubcircuits_ExtractsAllMetadataFields()
+    {
+        // Arrange
+        var libContent = @"
+* MANUFACTURER: Peerless
+* PART_NUMBER: 264-1148
+* TYPE: woofers
+* DIAMETER: 6.5
+* IMPEDANCE: 8
+* POWER_RMS: 75
+* SENSITIVITY: 88.5
+* PRICE: 59.98
+.SUBCKT test_speaker PLUS MINUS
+Re PLUS 1 2.73
+.ENDS
+";
+        var parser = new SpiceLibParser();
+
+        // Act
+        var subcircuits = parser.ParseSubcircuits(libContent);
+
+        // Assert
+        Assert.Single(subcircuits);
+        var sub = subcircuits.First();
+        Assert.Equal("Peerless", sub.Metadata["MANUFACTURER"]);
+        Assert.Equal("264-1148", sub.Metadata["PART_NUMBER"]);
+        Assert.Equal("woofers", sub.Metadata["TYPE"]);
+        Assert.Equal("6.5", sub.Metadata["DIAMETER"]);
+        Assert.Equal("8", sub.Metadata["IMPEDANCE"]);
+        Assert.Equal("75", sub.Metadata["POWER_RMS"]);
+        Assert.Equal("88.5", sub.Metadata["SENSITIVITY"]);
+        Assert.Equal("59.98", sub.Metadata["PRICE"]);
+    }
+
+    [Fact]
+    public void ParseSubcircuits_HandlesMissingMetadataGracefully()
+    {
+        // Arrange
+        var libContent = @"
+* FS: 42.18
+.SUBCKT test_speaker PLUS MINUS
+Re PLUS 1 2.73
+.ENDS
+";
+        var parser = new SpiceLibParser();
+
+        // Act
+        var subcircuits = parser.ParseSubcircuits(libContent);
+
+        // Assert
+        Assert.Single(subcircuits);
+        var sub = subcircuits.First();
+        Assert.Equal(42.18, sub.TsParameters["FS"]);
+        // Missing metadata should not cause errors
+        Assert.NotNull(sub.Metadata);
+        Assert.NotNull(sub.TsParameters);
+    }
+
+    [Fact]
+    public void ParseSubcircuits_HandlesNumericValuesCorrectly()
+    {
+        // Arrange
+        var libContent = @"
+* FS: 42.18
+* QTS: 0.35
+* VAS: 11.2
+* RE: 2.73
+* LE: 0.65
+* BL: 8.27
+.SUBCKT test_speaker PLUS MINUS
+Re PLUS 1 2.73
+.ENDS
+";
+        var parser = new SpiceLibParser();
+
+        // Act
+        var subcircuits = parser.ParseSubcircuits(libContent);
+
+        // Assert
+        Assert.Single(subcircuits);
+        var sub = subcircuits.First();
+        Assert.Equal(42.18, sub.TsParameters["FS"]);
+        Assert.Equal(0.35, sub.TsParameters["QTS"]);
+        Assert.Equal(11.2, sub.TsParameters["VAS"]);
+        Assert.Equal(2.73, sub.TsParameters["RE"]);
+        Assert.Equal(0.65, sub.TsParameters["LE"]);
+        Assert.Equal(8.27, sub.TsParameters["BL"]);
+    }
+
+    [Fact]
+    public void ParseSubcircuits_HandlesZeroValuesCorrectly()
+    {
+        // Arrange
+        var libContent = @"
+* FS: 0.0
+* QTS: 0.0
+* DIAMETER: 0.0
+.SUBCKT test_speaker PLUS MINUS
+Re PLUS 1 2.73
+.ENDS
+";
+        var parser = new SpiceLibParser();
+
+        // Act
+        var subcircuits = parser.ParseSubcircuits(libContent);
+
+        // Assert
+        Assert.Single(subcircuits);
+        var sub = subcircuits.First();
+        Assert.Equal(0.0, sub.TsParameters["FS"]);
+        Assert.Equal(0.0, sub.TsParameters["QTS"]);
+        Assert.Equal("0.0", sub.Metadata["DIAMETER"]);
+    }
+
+    [Fact]
+    public void ParseSubcircuits_HandlesMultipleSubcircuitsWithDifferentMetadata()
+    {
+        // Arrange
+        var libContent = @"
+* MANUFACTURER: Peerless
+* FS: 42.18
+* QTS: 0.35
+.SUBCKT speaker1 PLUS MINUS
+Re PLUS 1 2.73
+.ENDS
+* MANUFACTURER: Dayton
+* FS: 55.0
+* QTS: 0.5
+.SUBCKT speaker2 PLUS MINUS
+Re PLUS 1 3.0
+.ENDS
+";
+        var parser = new SpiceLibParser();
+
+        // Act
+        var subcircuits = parser.ParseSubcircuits(libContent);
+
+        // Assert
+        Assert.Equal(2, subcircuits.Count);
+        var sub1 = subcircuits.First(s => s.Name == "speaker1");
+        var sub2 = subcircuits.First(s => s.Name == "speaker2");
+        Assert.Equal("Peerless", sub1.Metadata["MANUFACTURER"]);
+        Assert.Equal(42.18, sub1.TsParameters["FS"]);
+        Assert.Equal(0.35, sub1.TsParameters["QTS"]);
+        Assert.Equal("Dayton", sub2.Metadata["MANUFACTURER"]);
+        Assert.Equal(55.0, sub2.TsParameters["FS"]);
+        Assert.Equal(0.5, sub2.TsParameters["QTS"]);
+    }
 }

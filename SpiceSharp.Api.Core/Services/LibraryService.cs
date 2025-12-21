@@ -11,6 +11,16 @@ public class LibraryService : ILibraryService
     private readonly ConcurrentDictionary<string, ModelDefinition> _modelIndex = new();
     private readonly ConcurrentDictionary<string, SubcircuitDefinition> _subcircuitIndex = new();
     private readonly SpiceLibParser _parser = new();
+    private readonly ISpeakerDatabaseService? _speakerDatabaseService;
+
+    /// <summary>
+    /// Initializes a new instance of the LibraryService
+    /// </summary>
+    /// <param name="speakerDatabaseService">Optional speaker database service for indexing speaker metadata</param>
+    public LibraryService(ISpeakerDatabaseService? speakerDatabaseService = null)
+    {
+        _speakerDatabaseService = speakerDatabaseService;
+    }
 
     /// <inheritdoc/>
     public void IndexLibraries(IEnumerable<string> libraryPaths)
@@ -21,7 +31,22 @@ public class LibraryService : ILibraryService
                 continue;
 
             // Recursively find all .lib files
-            var libFiles = Directory.GetFiles(path, "*.lib", SearchOption.AllDirectories);
+            // Handle permission errors gracefully
+            string[] libFiles;
+            try
+            {
+                libFiles = Directory.GetFiles(path, "*.lib", SearchOption.AllDirectories);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Skip directories we don't have access to
+                continue;
+            }
+            catch (DirectoryNotFoundException)
+            {
+                // Directory was deleted between check and access
+                continue;
+            }
 
             foreach (var libFile in libFiles)
             {
@@ -48,6 +73,21 @@ public class LibraryService : ILibraryService
                     // Log but continue processing other files
                     System.Diagnostics.Debug.WriteLine($"Error parsing library file {libFile}: {ex.Message}");
                 }
+            }
+        }
+
+        // Populate database with speaker subcircuits after indexing
+        if (_speakerDatabaseService != null)
+        {
+            try
+            {
+                _speakerDatabaseService.InitializeDatabase();
+                _speakerDatabaseService.PopulateFromSubcircuits(_subcircuitIndex.Values);
+            }
+            catch (Exception ex)
+            {
+                // Log but don't fail indexing if database population fails
+                System.Diagnostics.Debug.WriteLine($"Error populating speaker database: {ex.Message}");
             }
         }
     }
