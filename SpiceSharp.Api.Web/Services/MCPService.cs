@@ -351,7 +351,7 @@ public class MCPService
             new MCPToolDefinition
             {
                 Name = "plot_results",
-                Description = "DEFAULT plotting tool for all circuit analysis results. Plot results from circuit analysis as an SVG or PNG image. Supports line plots for DC sweep/transient analysis, Bode plots (magnitude and phase) for AC analysis, and bar charts for operating point comparisons. MULTIPLE CURVES: You can plot multiple signals on the same graph by specifying an array of signals (e.g., ['v(out)', 'i(R1)', 'v(in)']). All specified signals appear as separate curves on a single plot with different colors and a legend. If no signals are specified, all exported signals are plotted together. Use this tool after running any analysis (run_dc_analysis, run_transient_analysis, run_ac_analysis, run_operating_point) to visualize the results. Use matplotlib only for custom visualizations not supported by this tool. Features: DC sweep visualization, transient time-domain plots, AC frequency response (Bode plots), operating point comparisons, multiple curves on same graph, SVG output for embedding in HTML/text artifacts, and invert_signals support for SPICE current convention issues. FORMAT RECOMMENDATIONS: For embedding in HTML/text artifacts (most common use case, especially when generating HTML documents), use image_format='svg' with output_format=['text'] to get raw SVG string that can be directly embedded in HTML. For direct image display in MCP clients, try image_format='png' with output_format=['image'], but if that fails, fall back to SVG+text format. SVG+text is the most reliable option for programmatic use and HTML document generation.",
+                Description = "DEFAULT plotting tool for all circuit analysis results. Plot results from circuit analysis as an SVG or PNG image. Supports line plots for DC sweep/transient analysis, Bode plots (magnitude and phase) for AC analysis, and bar charts for operating point comparisons. MULTIPLE CURVES: You can plot multiple signals on the same graph by specifying an array of signals (e.g., ['v(out)', 'i(R1)', 'v(in)']). All specified signals appear as separate curves on a single plot with different colors and a legend. If no signals are specified, all exported signals are plotted together. Use this tool after running any analysis (run_dc_analysis, run_transient_analysis, run_ac_analysis, run_operating_point) to visualize the results. Use matplotlib only for custom visualizations not supported by this tool. Features: DC sweep visualization, transient time-domain plots, AC frequency response (Bode plots), operating point comparisons, multiple curves on same graph, SVG output for embedding in HTML/text artifacts, and invert_signals support for SPICE current convention issues. I-V CHARACTERISTIC CURVES: For I-V curves from DC analysis (e.g., diode, transistor characteristics), use plot_type='scatter' with x_signal='v(device)' and signals=['i(device)']. Example: plot_type='scatter', x_signal='v(anode)', signals=['i(D1)'] creates a current vs voltage characteristic curve. FORMAT RECOMMENDATIONS: For embedding in HTML/text artifacts (most common use case, especially when generating HTML documents), use image_format='svg' with output_format=['text'] to get raw SVG string that can be directly embedded in HTML. For direct image display in MCP clients, try image_format='png' with output_format=['image'], but if that fails, fall back to SVG+text format. SVG+text is the most reliable option for programmatic use and HTML document generation.",
                 InputSchema = new
                 {
                     type = "object",
@@ -888,6 +888,32 @@ public class MCPService
         };
         _resultsCache.Store(circuitId, cachedResult);
 
+        // Generate suggestion for I-V curves if voltage and current signals are present
+        string? suggestion = null;
+        var hasVoltage = result.Results.Keys.Any(k => k.StartsWith("v(", StringComparison.OrdinalIgnoreCase));
+        var hasCurrent = result.Results.Keys.Any(k => k.StartsWith("i(", StringComparison.OrdinalIgnoreCase));
+        if (hasVoltage && hasCurrent)
+        {
+            // Find a voltage and current signal pair that might represent an I-V curve
+            var voltageSignals = result.Results.Keys.Where(k => k.StartsWith("v(", StringComparison.OrdinalIgnoreCase)).ToList();
+            var currentSignals = result.Results.Keys.Where(k => k.StartsWith("i(", StringComparison.OrdinalIgnoreCase)).ToList();
+            
+            if (voltageSignals.Count > 0 && currentSignals.Count > 0)
+            {
+                // Suggest I-V curve plotting for the first voltage-current pair
+                var voltageSignal = voltageSignals[0];
+                var currentSignal = currentSignals[0];
+                suggestion = $"For I-V characteristic curve, use plot_results with plot_type='scatter', x_signal='{voltageSignal}', signals=['{currentSignal}']";
+            }
+        }
+
+        // Create response with optional suggestion
+        var response = new
+        {
+            Results = result,
+            Suggestion = suggestion
+        };
+
         return new MCPToolResult
         {
             Content = new List<MCPContent>
@@ -895,7 +921,7 @@ public class MCPService
                 new MCPContent
                 {
                     Type = "text",
-                    Text = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true })
+                    Text = JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true })
                 }
             }
         };
@@ -2256,6 +2282,26 @@ public class MCPService
             });
         }
 
+        // Check for potential I-V curve plotting issue (warning, not error)
+        string? warning = null;
+        if (analysisType == AnalysisType.DcSweep && plotType == PlotType.Line)
+        {
+            var hasVoltage = signalsToPlot.Any(s => s.StartsWith("v(", StringComparison.OrdinalIgnoreCase));
+            var hasCurrent = signalsToPlot.Any(s => s.StartsWith("i(", StringComparison.OrdinalIgnoreCase));
+            var hasXSignal = arguments.TryGetProperty("x_signal", out var xSignalElement) && !string.IsNullOrWhiteSpace(xSignalElement.GetString());
+            
+            if (hasVoltage && hasCurrent && !hasXSignal)
+            {
+                // User is plotting voltage and current separately - suggest I-V curve
+                var voltageSignal = signalsToPlot.FirstOrDefault(s => s.StartsWith("v(", StringComparison.OrdinalIgnoreCase));
+                var currentSignal = signalsToPlot.FirstOrDefault(s => s.StartsWith("i(", StringComparison.OrdinalIgnoreCase));
+                if (voltageSignal != null && currentSignal != null)
+                {
+                    warning = $"Plotting voltage and current separately. For I-V characteristic curve, consider using plot_type='scatter' with x_signal='{voltageSignal}' and signals=['{currentSignal}']";
+                }
+            }
+        }
+
         // Build response
         var response = new
         {
@@ -2264,7 +2310,8 @@ public class MCPService
             plot_type = plotTypeStr,
             signals_plotted = signalsToPlot,
             data_points = plotRequest.XData?.Length ?? 0,
-            image_format = imageFormatStr
+            image_format = imageFormatStr,
+            warning = warning
         };
 
         contentList.Add(new MCPContent
