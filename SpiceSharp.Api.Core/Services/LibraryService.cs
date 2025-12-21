@@ -9,6 +9,7 @@ namespace SpiceSharp.Api.Core.Services;
 public class LibraryService : ILibraryService
 {
     private readonly ConcurrentDictionary<string, ModelDefinition> _modelIndex = new();
+    private readonly ConcurrentDictionary<string, SubcircuitDefinition> _subcircuitIndex = new();
     private readonly SpiceLibParser _parser = new();
 
     /// <inheritdoc/>
@@ -28,11 +29,18 @@ public class LibraryService : ILibraryService
                 {
                     var content = File.ReadAllText(libFile);
                     var models = _parser.ParseLibFile(content);
+                    var subcircuits = _parser.ParseSubcircuits(content);
 
                     foreach (var model in models)
                     {
                         // Only add if not already indexed (first wins for duplicates)
                         _modelIndex.TryAdd(model.ModelName, model);
+                    }
+
+                    foreach (var subcircuit in subcircuits)
+                    {
+                        // Only add if not already indexed (first wins for duplicates)
+                        _subcircuitIndex.TryAdd(subcircuit.Name, subcircuit);
                     }
                 }
                 catch (Exception ex)
@@ -70,6 +78,30 @@ public class LibraryService : ILibraryService
                 return true;
             })
             .OrderBy(m => m.ModelName)
+            .Take(limit)
+            .ToList();
+
+        return results;
+    }
+
+    /// <inheritdoc/>
+    public List<SubcircuitDefinition> SearchSubcircuits(string query, int limit)
+    {
+        var queryLower = query?.ToLowerInvariant() ?? string.Empty;
+
+        var results = _subcircuitIndex.Values
+            .Where(subcircuit =>
+            {
+                // Filter by query (subcircuit name substring)
+                if (!string.IsNullOrEmpty(queryLower) &&
+                    !subcircuit.Name.ToLowerInvariant().Contains(queryLower))
+                {
+                    return false;
+                }
+
+                return true;
+            })
+            .OrderBy(s => s.Name)
             .Take(limit)
             .ToList();
 

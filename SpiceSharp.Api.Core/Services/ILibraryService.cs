@@ -21,4 +21,12 @@ public interface ILibraryService
     /// <param name="limit">Maximum number of results to return</param>
     /// <returns>List of matching model definitions</returns>
     List<ModelDefinition> SearchModels(string query, string? typeFilter, int limit);
+
+    /// <summary>
+    /// Searches for subcircuits matching the query
+    /// </summary>
+    /// <param name="query">Search query (subcircuit name substring, case-insensitive)</param>
+    /// <param name="limit">Maximum number of results to return</param>
+    /// <returns>List of matching subcircuit definitions</returns>
+    List<SubcircuitDefinition> SearchSubcircuits(string query, int limit);
 }

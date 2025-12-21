@@ -25,21 +25,21 @@ This plan implements subcircuit support for the SpiceService MCP server, priorit
 **File**: `SpiceSharp.Api.Core/Models/SubcircuitDefinition.cs`
 
 **Checklist**:
-- [ ] Create `SubcircuitDefinition` class
-- [ ] Properties: `Name` (string), `Nodes` (List<string>), `Definition` (string - internal netlist)
-- [ ] Add XML documentation comments
-- [ ] Follow same pattern as `ModelDefinition`
+- [x] Create `SubcircuitDefinition` class
+- [x] Properties: `Name` (string), `Nodes` (List<string>), `Definition` (string - internal netlist)
+- [x] Add XML documentation comments
+- [x] Follow same pattern as `ModelDefinition`
 
 **TDD**:
-- [ ] Create test file: `SpiceSharp.Api.Core.Tests/Models/SubcircuitDefinitionTests.cs`
-- [ ] Test: Constructor initializes properties correctly
-- [ ] Test: Nodes list is initialized (not null)
-- [ ] Test: Definition string is initialized (not null)
+- [x] Create test file: `SpiceSharp.Api.Core.Tests/Models/SubcircuitDefinitionTests.cs`
+- [x] Test: Constructor initializes properties correctly
+- [x] Test: Nodes list is initialized (not null)
+- [x] Test: Definition string is initialized (not null)
 
 **Validation**:
-- [ ] `dotnet build` - zero errors, zero warnings
-- [ ] `dotnet test` - all tests pass
-- [ ] `read_lints` - zero linter errors
+- [x] `dotnet build` - zero errors, zero warnings
+- [x] `dotnet test` - all tests pass
+- [x] `read_lints` - zero linter errors
 
 ---
 
@@ -51,27 +51,27 @@ This plan implements subcircuit support for the SpiceService MCP server, priorit
 **File**: `SpiceSharp.Api.Core/Services/SpiceLibParser.cs`
 
 **Checklist**:
-- [ ] Add `ParseSubcircuits()` method (returns `List<SubcircuitDefinition>`)
-- [ ] Add regex pattern for `.SUBCKT` line: `^\s*\.SUBCKT\s+(\w+)\s+(.+)$`
-- [ ] Handle continuation lines (starting with `+`)
-- [ ] Parse until `.ENDS` statement
-- [ ] Extract subcircuit name and external nodes
-- [ ] Store internal definition (all lines between `.SUBCKT` and `.ENDS`)
-- [ ] Handle comments (lines starting with `*`)
-- [ ] Handle inline comments (after `*` in line)
+- [x] Add `ParseSubcircuits()` method (returns `List<SubcircuitDefinition>`)
+- [x] Add regex pattern for `.SUBCKT` line: `^\s*\.SUBCKT\s+(\w+)\s+(.+)$`
+- [x] Handle continuation lines (starting with `+`)
+- [x] Parse until `.ENDS` statement
+- [x] Extract subcircuit name and external nodes
+- [x] Store internal definition (all lines between `.SUBCKT` and `.ENDS`)
+- [x] Handle comments (lines starting with `*`)
+- [x] Handle inline comments (after `*` in line)
 
 **TDD**:
-- [ ] Extend `SpiceSharp.Api.Core.Tests/Services/SpiceLibParserTests.cs`
-- [ ] Test: Parse simple subcircuit (single line definition)
-- [ ] Test: Parse subcircuit with multiple external nodes
-- [ ] Test: Parse subcircuit with continuation lines
-- [ ] Test: Parse subcircuit with internal components
-- [ ] Test: Parse subcircuit with comments
-- [ ] Test: Parse multiple subcircuits in one file
-- [ ] Test: Parse file with both models and subcircuits
-- [ ] Test: Handle malformed .SUBCKT gracefully
-- [ ] Test: Handle missing .ENDS gracefully (or until next .SUBCKT/.MODEL)
-- [ ] Test: Empty file returns empty list
+- [x] Extend `SpiceSharp.Api.Core.Tests/Services/SpiceLibParserTests.cs`
+- [x] Test: Parse simple subcircuit (single line definition)
+- [x] Test: Parse subcircuit with multiple external nodes
+- [x] Test: Parse subcircuit with continuation lines
+- [x] Test: Parse subcircuit with internal components
+- [x] Test: Parse subcircuit with comments
+- [x] Test: Parse multiple subcircuits in one file
+- [x] Test: Parse file with both models and subcircuits
+- [x] Test: Handle malformed .SUBCKT gracefully
+- [x] Test: Handle missing .ENDS gracefully (or until next .SUBCKT/.MODEL)
+- [x] Test: Empty file returns empty list
 
 **Example Test Case**:
 ```csharp
@@ -99,9 +99,9 @@ M1 9 7 8 8 MM L=100u W=100u
 ```
 
 **Validation**:
-- [ ] `dotnet build` - zero errors, zero warnings
-- [ ] `dotnet test` - all tests pass
-- [ ] `read_lints` - zero linter errors
+- [x] `dotnet build` - zero errors, zero warnings
+- [x] `dotnet test` - all tests pass
+- [x] `read_lints` - zero linter errors
 - [ ] Test with real library file (e.g., `libraries/kicad_INTRNTL2.LIB`)
 
 ---
@@ -114,45 +114,45 @@ M1 9 7 8 8 MM L=100u W=100u
 **File**: `SpiceSharp.Api.Core/Services/ILibraryService.cs`
 
 **Checklist**:
-- [ ] Add `SearchSubcircuits(string query, int limit)` method
-- [ ] Add XML documentation
+- [x] Add `SearchSubcircuits(string query, int limit)` method
+- [x] Add XML documentation
 
 **TDD**:
-- [ ] Create test file: `SpiceSharp.Api.Core.Tests/Services/LibraryServiceSubcircuitTests.cs`
-- [ ] Test: SearchSubcircuits returns empty list when no subcircuits indexed
-- [ ] Test: SearchSubcircuits finds subcircuit by name
-- [ ] Test: SearchSubcircuits respects limit
-- [ ] Test: SearchSubcircuits is case-insensitive
+- [x] Create test file: `SpiceSharp.Api.Core.Tests/Services/LibraryServiceSubcircuitTests.cs`
+- [x] Test: SearchSubcircuits returns empty list when no subcircuits indexed
+- [x] Test: SearchSubcircuits finds subcircuit by name
+- [x] Test: SearchSubcircuits respects limit
+- [x] Test: SearchSubcircuits is case-insensitive
 
 **Validation**:
-- [ ] `dotnet build` - zero errors, zero warnings
-- [ ] `dotnet test` - all tests pass
-- [ ] `read_lints` - zero linter errors
+- [x] `dotnet build` - zero errors, zero warnings
+- [x] `dotnet test` - all tests pass
+- [x] `read_lints` - zero linter errors
 
 ### Step 3.2: Extend LibraryService Implementation
 **File**: `SpiceSharp.Api.Core/Services/LibraryService.cs`
 
 **Checklist**:
-- [ ] Add `_subcircuitIndex` (ConcurrentDictionary<string, SubcircuitDefinition>)
-- [ ] In `IndexLibraries()`, call `_parser.ParseSubcircuits()` for each library file
-- [ ] Index subcircuits (similar to models)
-- [ ] Implement `SearchSubcircuits()` method
-- [ ] Handle duplicate subcircuit names (first wins, like models)
+- [x] Add `_subcircuitIndex` (ConcurrentDictionary<string, SubcircuitDefinition>)
+- [x] In `IndexLibraries()`, call `_parser.ParseSubcircuits()` for each library file
+- [x] Index subcircuits (similar to models)
+- [x] Implement `SearchSubcircuits()` method
+- [x] Handle duplicate subcircuit names (first wins, like models)
 
 **TDD**:
-- [ ] Extend `LibraryServiceSubcircuitTests.cs`
-- [ ] Test: IndexLibraries indexes subcircuits from library files
-- [ ] Test: IndexLibraries handles multiple library files
-- [ ] Test: IndexLibraries handles duplicate subcircuit names (first wins)
-- [ ] Test: SearchSubcircuits finds indexed subcircuits
-- [ ] Test: SearchSubcircuits with query filters by name
-- [ ] Test: SearchSubcircuits with limit returns correct count
-- [ ] Test: IndexLibraries handles files with both models and subcircuits
+- [x] Extend `LibraryServiceSubcircuitTests.cs`
+- [x] Test: IndexLibraries indexes subcircuits from library files
+- [x] Test: IndexLibraries handles multiple library files
+- [x] Test: IndexLibraries handles duplicate subcircuit names (first wins)
+- [x] Test: SearchSubcircuits finds indexed subcircuits
+- [x] Test: SearchSubcircuits with query filters by name
+- [x] Test: SearchSubcircuits with limit returns correct count
+- [x] Test: IndexLibraries handles files with both models and subcircuits
 
 **Validation**:
-- [ ] `dotnet build` - zero errors, zero warnings
-- [ ] `dotnet test` - all tests pass
-- [ ] `read_lints` - zero linter errors
+- [x] `dotnet build` - zero errors, zero warnings
+- [x] `dotnet test` - all tests pass
+- [x] `read_lints` - zero linter errors
 - [ ] Test with real library directory
 
 ---
@@ -165,19 +165,19 @@ M1 9 7 8 8 MM L=100u W=100u
 **File**: `SpiceSharp.Api.Web/Services/MCPService.cs`
 
 **Checklist**:
-- [ ] In `LibrarySearch()`, call `_libraryService.SearchSubcircuits()`
-- [ ] Add subcircuits to response JSON
-- [ ] Include `type: "subcircuit"` field in results
+- [x] In `LibrarySearch()`, call `_libraryService.SearchSubcircuits()`
+- [x] Add subcircuits to response JSON
+- [x] Include `type: "subcircuit"` field in results
 - [ ] Allow filtering by type (include subcircuits in type filter)
-- [ ] Update tool description to mention subcircuits
+- [x] Update tool description to mention subcircuits
 
 **TDD**:
-- [ ] Extend `SpiceSharp.Api.Web.Tests/Services/LibrarySearchToolTests.cs` (or create if needed)
-- [ ] Test: library_search returns subcircuits when query matches
-- [ ] Test: library_search returns both models and subcircuits
+- [x] Extend `SpiceSharp.Api.Web.Tests/Services/LibrarySearchToolTests.cs` (or create if needed)
+- [x] Test: library_search returns subcircuits when query matches
+- [x] Test: library_search returns both models and subcircuits
 - [ ] Test: library_search with type filter works for subcircuits
-- [ ] Test: library_search response includes correct fields for subcircuits
-- [ ] Test: library_search handles empty results gracefully
+- [x] Test: library_search response includes correct fields for subcircuits
+- [x] Test: library_search handles empty results gracefully
 
 **Example Response Structure**:
 ```json
@@ -197,9 +197,9 @@ M1 9 7 8 8 MM L=100u W=100u
 ```
 
 **Validation**:
-- [ ] `dotnet build` - zero errors, zero warnings
-- [ ] `dotnet test` - all tests pass
-- [ ] `read_lints` - zero linter errors
+- [x] `dotnet build` - zero errors, zero warnings
+- [x] `dotnet test` - all tests pass
+- [x] `read_lints` - zero linter errors
 - [ ] Manual test: Call library_search via MCP and verify subcircuits appear
 
 ---
@@ -376,17 +376,17 @@ M1 9 7 8 8 MM L=100u W=100u
 ## Progress Tracking
 
 ### Phase 1: Foundation
-- [ ] Step 1.1: SubcircuitDefinition Model
+- [x] Step 1.1: SubcircuitDefinition Model
 
 ### Phase 2: Library Parser
-- [ ] Step 2.1: Extend SpiceLibParser
+- [x] Step 2.1: Extend SpiceLibParser
 
 ### Phase 3: Library Service
-- [ ] Step 3.1: Extend ILibraryService Interface
-- [ ] Step 3.2: Extend LibraryService Implementation
+- [x] Step 3.1: Extend ILibraryService Interface
+- [x] Step 3.2: Extend LibraryService Implementation
 
 ### Phase 4: MCP Tool - library_search
-- [ ] Step 4.1: Update library_search Tool
+- [x] Step 4.1: Update library_search Tool
 
 ### Phase 5: Component Factory
 - [ ] Step 5.1: Research SpiceSharp.Subcircuit API

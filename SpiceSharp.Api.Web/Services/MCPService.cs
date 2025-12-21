@@ -298,7 +298,7 @@ public class MCPService
             new MCPToolDefinition
             {
                 Name = "library_search",
-                Description = "REQUIRED: Search SPICE component libraries for models. Returns matching model definitions with their parameters. USE THIS TOOL FIRST when creating circuits with common component types (LED, diode, transistor, MOSFET, BJT, JFET, etc.). Use this to discover available components and their parameters before adding them to circuits with add_component. This tool helps you find the correct model names and understand what parameters are available for each component type.",
+                Description = "REQUIRED: Search SPICE component libraries for models and subcircuits. Returns matching model definitions with their parameters, and subcircuit definitions with their external nodes. USE THIS TOOL FIRST when creating circuits with common component types (LED, diode, transistor, MOSFET, BJT, JFET, etc.) or when looking for subcircuit definitions. Use this to discover available components and their parameters before adding them to circuits with add_component. This tool helps you find the correct model names and understand what parameters are available for each component type, as well as find subcircuit definitions for use with component_type='subcircuit'.",
                 InputSchema = new
                 {
                     type = "object",
@@ -1497,13 +1497,16 @@ public class MCPService
                             error = "Library service is not configured",
                             message = $"Library service is not available. {configInfo} " +
                                       "To enable library search, configure LibraryPaths in MCPServerConfig with directories containing .lib files. " +
-                                      "The library service will automatically index all .lib files in those directories on startup. " +
+                                      "The library service will automatically index all .lib files in those directories on startup (including models and subcircuits). " +
                                       "See sample_libraries/sample_components.lib for an example library file format.",
                             query = query,
                             type_filter = typeFilter,
                             limit = limit,
                             count = 0,
-                            models = new List<object>()
+                            model_count = 0,
+                            subcircuit_count = 0,
+                            models = new List<object>(),
+                            subcircuits = new List<object>()
                         }, new JsonSerializerOptions { WriteIndented = true })
                     }
                 }
@@ -1513,7 +1516,14 @@ public class MCPService
         // Search models - use a higher limit for count_only to get accurate total
         var searchLimit = countOnly ? int.MaxValue : limit;
         var models = _libraryService.SearchModels(query, typeFilter, searchLimit);
-        var totalCount = models.Count;
+        var totalModelCount = models.Count;
+
+        // Search subcircuits
+        var subcircuits = _libraryService.SearchSubcircuits(query, searchLimit);
+        var totalSubcircuitCount = subcircuits.Count;
+
+        // Calculate total count
+        var totalCount = totalModelCount + totalSubcircuitCount;
 
         // If count_only, return just the count
         if (countOnly)
@@ -1530,9 +1540,11 @@ public class MCPService
                             query = query,
                             type_filter = typeFilter,
                             count = totalCount,
+                            model_count = totalModelCount,
+                            subcircuit_count = totalSubcircuitCount,
                             message = totalCount > 0 
-                                ? $"Found {totalCount} matching model(s). Use library_search with include_parameters=true to get details."
-                                : "No matching models found."
+                                ? $"Found {totalModelCount} matching model(s) and {totalSubcircuitCount} matching subcircuit(s). Use library_search with include_parameters=true to get details."
+                                : "No matching models or subcircuits found."
                         }, new JsonSerializerOptions { WriteIndented = true })
                     }
                 }
@@ -1545,8 +1557,19 @@ public class MCPService
         {
             model_name = m.ModelName,
             model_type = m.ModelType,
+            type = "model",
             parameters = includeParameters ? (m.Parameters ?? new Dictionary<string, double>()) : null,
             parameter_count = includeParameters ? (m.Parameters?.Count ?? 0) : (m.Parameters?.Count ?? 0)
+        }).ToList();
+
+        // Format subcircuit results - limit to requested count
+        var limitedSubcircuits = subcircuits.Take(limit).ToList();
+        var subcircuitResults = limitedSubcircuits.Select(s => new
+        {
+            name = s.Name,
+            type = "subcircuit",
+            nodes = s.Nodes ?? new List<string>(),
+            node_count = s.Nodes?.Count ?? 0
         }).ToList();
 
         // Build response message
@@ -1554,11 +1577,12 @@ public class MCPService
             ? $" Note: Requested limit ({requestedLimit}) exceeds maximum (100), capped at 100."
             : "";
         
+        var totalReturned = modelResults.Count + subcircuitResults.Count;
         var message = totalCount > limit
-            ? $"Found {totalCount} matching model(s), showing first {limit}. Use 'limit' parameter to see more (max 100), or 'count_only=true' to get total count.{limitWarning}"
+            ? $"Found {totalModelCount} matching model(s) and {totalSubcircuitCount} matching subcircuit(s), showing first {limit}. Use 'limit' parameter to see more (max 100), or 'count_only=true' to get total count.{limitWarning}"
             : totalCount > 0
-                ? $"Found {totalCount} matching model(s).{limitWarning}"
-                : "No matching models found.";
+                ? $"Found {totalModelCount} matching model(s) and {totalSubcircuitCount} matching subcircuit(s).{limitWarning}"
+                : "No matching models or subcircuits found.";
 
         return new MCPToolResult
         {
@@ -1573,10 +1597,15 @@ public class MCPService
                         type_filter = typeFilter,
                         limit = limit,
                         count = totalCount,
-                        returned = modelResults.Count,
+                        model_count = totalModelCount,
+                        subcircuit_count = totalSubcircuitCount,
+                        returned = totalReturned,
+                        models_returned = modelResults.Count,
+                        subcircuits_returned = subcircuitResults.Count,
                         include_parameters = includeParameters,
                         message = message,
-                        models = modelResults
+                        models = modelResults,
+                        subcircuits = subcircuitResults
                     }, new JsonSerializerOptions { WriteIndented = true })
                 }
             }

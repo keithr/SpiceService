@@ -16,6 +16,10 @@ public class SpiceLibParser
         @"(\w+)\s*=\s*([+-]?(?:\d+\.?\d*|\.\d+)(?:[Ee][+-]?\d+)?|[+-]?\d+\.?\d*[munpfa]?)",
         RegexOptions.IgnoreCase);
 
+    private static readonly Regex SubcircuitLineRegex = new Regex(
+        @"^\s*\.SUBCKT\s+(\w+)\s+(.+)$",
+        RegexOptions.IgnoreCase | RegexOptions.Multiline);
+
     /// <summary>
     /// Parses a SPICE library file content and extracts model definitions
     /// </summary>
@@ -226,5 +230,152 @@ public class SpiceLibParser
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Parses a SPICE library file content and extracts subcircuit definitions
+    /// </summary>
+    /// <param name="libContent">The content of the .lib file</param>
+    /// <returns>List of parsed subcircuit definitions</returns>
+    public List<SubcircuitDefinition> ParseSubcircuits(string libContent)
+    {
+        var subcircuits = new List<SubcircuitDefinition>();
+
+        if (string.IsNullOrWhiteSpace(libContent))
+            return subcircuits;
+
+        var lines = libContent.Split('\n');
+        var currentSubcircuitLines = new List<string>();
+        string? currentSubcircuitName = null;
+        List<string>? currentSubcircuitNodes = null;
+        bool inSubcircuit = false;
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+
+            // Skip empty lines and comment-only lines
+            if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith("*"))
+                continue;
+
+            // Check if this is a .SUBCKT line
+            if (trimmed.StartsWith(".SUBCKT", StringComparison.OrdinalIgnoreCase))
+            {
+                // If we have an incomplete subcircuit, save it
+                if (inSubcircuit && currentSubcircuitName != null && currentSubcircuitNodes != null)
+                {
+                    var subcircuit = CreateSubcircuitDefinition(currentSubcircuitName, currentSubcircuitNodes, currentSubcircuitLines);
+                    if (subcircuit != null)
+                        subcircuits.Add(subcircuit);
+                }
+
+                // Start new subcircuit
+                var match = SubcircuitLineRegex.Match(trimmed);
+                if (match.Success)
+                {
+                    currentSubcircuitName = match.Groups[1].Value;
+                    var nodesText = match.Groups[2].Value;
+                    // Remove inline comments
+                    var commentIndex = nodesText.IndexOf('*');
+                    if (commentIndex >= 0)
+                    {
+                        nodesText = nodesText.Substring(0, commentIndex).Trim();
+                    }
+                    currentSubcircuitNodes = nodesText.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+                    currentSubcircuitLines.Clear();
+                    inSubcircuit = true;
+                }
+            }
+            // Check if this is a .ENDS line
+            else if (trimmed.StartsWith(".ENDS", StringComparison.OrdinalIgnoreCase))
+            {
+                if (inSubcircuit && currentSubcircuitName != null && currentSubcircuitNodes != null)
+                {
+                    var subcircuit = CreateSubcircuitDefinition(currentSubcircuitName, currentSubcircuitNodes, currentSubcircuitLines);
+                    if (subcircuit != null)
+                        subcircuits.Add(subcircuit);
+                }
+                inSubcircuit = false;
+                currentSubcircuitName = null;
+                currentSubcircuitNodes = null;
+                currentSubcircuitLines.Clear();
+            }
+            // Check if this is a continuation line (starts with +)
+            else if (trimmed.StartsWith("+", StringComparison.OrdinalIgnoreCase))
+            {
+                if (inSubcircuit)
+                {
+                    // If we're in a subcircuit and this is a continuation line, it could be:
+                    // 1. Continuation of .SUBCKT line (more nodes)
+                    // 2. Continuation of an internal component line
+                    if (currentSubcircuitLines.Count == 0)
+                    {
+                        // This is continuation of .SUBCKT line - add nodes
+                        var continuationText = trimmed.TrimStart('+', ' ').Trim();
+                        var commentIndex = continuationText.IndexOf('*');
+                        if (commentIndex >= 0)
+                        {
+                            continuationText = continuationText.Substring(0, commentIndex).Trim();
+                        }
+                        var additionalNodes = continuationText.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                        if (currentSubcircuitNodes != null)
+                        {
+                            currentSubcircuitNodes.AddRange(additionalNodes);
+                        }
+                    }
+                    else
+                    {
+                        // This is continuation of an internal component line
+                        currentSubcircuitLines.Add(trimmed);
+                    }
+                }
+            }
+            // Regular line inside subcircuit
+            else if (inSubcircuit)
+            {
+                currentSubcircuitLines.Add(trimmed);
+            }
+        }
+
+        // Process any remaining incomplete subcircuit
+        if (inSubcircuit && currentSubcircuitName != null && currentSubcircuitNodes != null)
+        {
+            var subcircuit = CreateSubcircuitDefinition(currentSubcircuitName, currentSubcircuitNodes, currentSubcircuitLines);
+            if (subcircuit != null)
+                subcircuits.Add(subcircuit);
+        }
+
+        return subcircuits;
+    }
+
+    /// <summary>
+    /// Creates a SubcircuitDefinition from parsed data
+    /// </summary>
+    private SubcircuitDefinition? CreateSubcircuitDefinition(string name, List<string> nodes, List<string> definitionLines)
+    {
+        if (string.IsNullOrWhiteSpace(name) || nodes == null || nodes.Count == 0)
+            return null;
+
+        // Clean up definition lines: remove inline comments and continuation markers
+        var cleanedDefinitionLines = definitionLines.Select(l =>
+        {
+            var trimmed = l.TrimStart('+', ' ').Trim();
+            // Remove inline comments
+            var commentIndex = trimmed.IndexOf('*');
+            if (commentIndex >= 0)
+            {
+                trimmed = trimmed.Substring(0, commentIndex).Trim();
+            }
+            return trimmed;
+        }).Where(l => !string.IsNullOrWhiteSpace(l));
+
+        var definition = string.Join("\n", cleanedDefinitionLines);
+
+        return new SubcircuitDefinition
+        {
+            Name = name,
+            Nodes = nodes,
+            Definition = definition
+        };
     }
 }

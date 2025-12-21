@@ -54,6 +54,10 @@ public class LibrarySearchToolTests : IDisposable
 .MODEL D1N4001 D (IS=1E-14 RS=0.5 N=1.5)
 .MODEL D1N4002 D (IS=2E-14 RS=0.6 N=1.6)
 .MODEL Q2N3904 NPN (IS=1E-16 BF=100)
+.SUBCKT irf1010n 1 2 3
+M1 9 7 8 8 MM L=100u W=100u
+.MODEL MM NMOS LEVEL=1 VTO=3.74111
+.ENDS
 ");
 
         var libraryService = new LibraryService();
@@ -271,5 +275,111 @@ public class LibrarySearchToolTests : IDisposable
                    messageText.Contains("not configured", StringComparison.OrdinalIgnoreCase),
                    $"Message should mention 'not available' or 'not configured'. Got: {messageText}");
         Assert.Equal(0, resultData.GetProperty("count").GetInt32());
+    }
+
+    [Fact]
+    public async Task SearchLibrary_ReturnsSubcircuitsWhenQueryMatches()
+    {
+        // Arrange
+        var arguments = JsonSerializer.SerializeToElement(new
+        {
+            query = "irf1010",
+            limit = 10
+        });
+
+        // Act
+        var result = await _mcpService.ExecuteTool("library_search", arguments);
+
+        // Assert
+        Assert.NotNull(result);
+        var textContent = result.Content.FirstOrDefault(c => c.Type == "text");
+        Assert.NotNull(textContent);
+        
+        var resultData = JsonSerializer.Deserialize<JsonElement>(textContent!.Text);
+        Assert.True(resultData.TryGetProperty("subcircuits", out var subcircuitsArray));
+        Assert.True(subcircuitsArray.GetArrayLength() >= 1);
+        
+        var subcircuit = subcircuitsArray.EnumerateArray().First();
+        Assert.Equal("irf1010n", subcircuit.GetProperty("name").GetString());
+        Assert.Equal("subcircuit", subcircuit.GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public async Task SearchLibrary_ReturnsBothModelsAndSubcircuits()
+    {
+        // Arrange
+        var arguments = JsonSerializer.SerializeToElement(new
+        {
+            query = "",
+            limit = 100
+        });
+
+        // Act
+        var result = await _mcpService.ExecuteTool("library_search", arguments);
+
+        // Assert
+        Assert.NotNull(result);
+        var textContent = result.Content.FirstOrDefault(c => c.Type == "text");
+        Assert.NotNull(textContent);
+        
+        var resultData = JsonSerializer.Deserialize<JsonElement>(textContent!.Text);
+        Assert.True(resultData.TryGetProperty("models", out var modelsArray));
+        Assert.True(resultData.TryGetProperty("subcircuits", out var subcircuitsArray));
+        Assert.True(modelsArray.GetArrayLength() >= 3);
+        Assert.True(subcircuitsArray.GetArrayLength() >= 1);
+    }
+
+    [Fact]
+    public async Task SearchLibrary_ResponseIncludesCorrectFieldsForSubcircuits()
+    {
+        // Arrange
+        var arguments = JsonSerializer.SerializeToElement(new
+        {
+            query = "irf1010n",
+            limit = 10
+        });
+
+        // Act
+        var result = await _mcpService.ExecuteTool("library_search", arguments);
+
+        // Assert
+        Assert.NotNull(result);
+        var textContent = result.Content.FirstOrDefault(c => c.Type == "text");
+        Assert.NotNull(textContent);
+        
+        var resultData = JsonSerializer.Deserialize<JsonElement>(textContent!.Text);
+        var subcircuitsArray = resultData.GetProperty("subcircuits");
+        var subcircuit = subcircuitsArray.EnumerateArray().First();
+        
+        Assert.True(subcircuit.TryGetProperty("name", out _));
+        Assert.True(subcircuit.TryGetProperty("type", out _));
+        Assert.True(subcircuit.TryGetProperty("nodes", out _));
+        Assert.True(subcircuit.TryGetProperty("node_count", out _));
+        Assert.Equal("subcircuit", subcircuit.GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public async Task SearchLibrary_HandlesEmptyResultsGracefully()
+    {
+        // Arrange
+        var arguments = JsonSerializer.SerializeToElement(new
+        {
+            query = "nonexistent_component_xyz",
+            limit = 10
+        });
+
+        // Act
+        var result = await _mcpService.ExecuteTool("library_search", arguments);
+
+        // Assert
+        Assert.NotNull(result);
+        var textContent = result.Content.FirstOrDefault(c => c.Type == "text");
+        Assert.NotNull(textContent);
+        
+        var resultData = JsonSerializer.Deserialize<JsonElement>(textContent!.Text);
+        Assert.True(resultData.TryGetProperty("models", out var modelsArray));
+        Assert.True(resultData.TryGetProperty("subcircuits", out var subcircuitsArray));
+        Assert.Equal(0, modelsArray.GetArrayLength());
+        Assert.Equal(0, subcircuitsArray.GetArrayLength());
     }
 }
