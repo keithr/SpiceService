@@ -129,20 +129,30 @@ if (-not $msbuild) {
     $msbuild = Get-Command msbuild -ErrorAction SilentlyContinue
     if ($msbuild) {
         $msbuild = $msbuild.Path
-    } else {
-        Write-Host "MSBuild not found! Please install Visual Studio Build Tools or ensure MSBuild is in PATH." -ForegroundColor Red
-        exit 1
     }
 }
 
-Write-Host "Using MSBuild: $msbuild" -ForegroundColor Cyan
-& $msbuild "SpiceServiceTray.Installer.wixproj" /p:Configuration=$Configuration /p:Platform=$Platform /p:SolutionDir="$PSScriptRoot\..\" /t:Rebuild
+if ($msbuild) {
+    Write-Host "Using MSBuild: $msbuild" -ForegroundColor Cyan
+    & $msbuild "SpiceServiceTray.Installer.wixproj" /p:Configuration=$Configuration /p:Platform=$Platform /p:SolutionDir="$PSScriptRoot\..\" /t:Rebuild
+    
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "MSI created successfully using MSBuild!" -ForegroundColor Green
+    } else {
+        Write-Host "MSBuild failed, trying standalone WiX tools..." -ForegroundColor Yellow
+    }
+}
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "MSBuild failed, trying standalone WiX tools..." -ForegroundColor Yellow
+if (-not $msbuild -or $LASTEXITCODE -ne 0) {
+    if (-not $msbuild) {
+        Write-Host "MSBuild not found, using standalone WiX tools..." -ForegroundColor Yellow
+    }
     
     # Fallback to standalone WiX tools
     $trayAppSourceDir = Resolve-Path "..\SpiceSharp.Api.Tray\bin\$Configuration\net8.0-windows"
+    $mcpRemoteSourceDir = Resolve-Path "..\McpRemote\bin\$Configuration\net8.0\win-x64\publish"
+    $librariesSourceDir = Resolve-Path "..\libraries"
+    $iconPath = Resolve-Path "..\resources\spice.ico"
     $candleExe = Join-Path $wixPath "candle.exe"
     $lightExe = Join-Path $wixPath "light.exe"
     $heatExe = Join-Path $wixPath "heat.exe"
@@ -159,11 +169,19 @@ if ($LASTEXITCODE -ne 0) {
     }
     $binDir = $distDir
     
-    # Harvest files
-    Write-Host "Harvesting files..." -ForegroundColor Cyan
-    & $heatExe dir "$trayAppSourceDir" -cg HarvestedFiles -gg -sfrag -srd -scom -sreg -dr TrayAppFolder -var var.TrayAppSourceDir -out HarvestedFiles.wxs -x SpiceServiceTray.exe -x SpiceServiceTray.dll
+    # Harvest files (exclude main exe, dll, and McpRemote.exe - manually defined in Product.wxs)
+    Write-Host "Harvesting application files..." -ForegroundColor Cyan
+    & $heatExe dir "$trayAppSourceDir" -cg HarvestedFiles -gg -sfrag -srd -scom -sreg -dr TrayAppFolder -var var.TrayAppSourceDir -out HarvestedFiles.wxs -x SpiceServiceTray.exe -x SpiceServiceTray.dll -x McpRemote.exe
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Failed to harvest files!" -ForegroundColor Red
+        exit 1
+    }
+    
+    # Harvest library files
+    Write-Host "Harvesting library files..." -ForegroundColor Cyan
+    & $heatExe dir "$librariesSourceDir" -cg HarvestedLibraries -gg -sfrag -srd -scom -sreg -dr LibrariesFolder -var var.LibrariesSourceDir -out HarvestedLibraries.wxs
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Failed to harvest library files!" -ForegroundColor Red
         exit 1
     }
     
@@ -214,8 +232,16 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "Compiling WiX source files..." -ForegroundColor Cyan
     # Convert backslashes to forward slashes for WiX preprocessor
     $trayAppSourceDirEscaped = $trayAppSourceDir -replace '\\', '/'
-    # Define variable without var. prefix - WiX maps it automatically
-    & $candleExe "Product.wxs" -o "Product.wixobj" "-dTrayAppSourceDir=$trayAppSourceDirEscaped" -ext WixUIExtension.dll -ext WixUtilExtension.dll
+    $mcpRemoteSourceDirEscaped = $mcpRemoteSourceDir -replace '\\', '/'
+    $librariesSourceDirEscaped = $librariesSourceDir -replace '\\', '/'
+    $iconPathEscaped = $iconPath -replace '\\', '/'
+    # Define variables - WiX maps var. prefix automatically
+    & $candleExe "Product.wxs" -o "Product.wixobj" `
+        "-dTrayAppSourceDir=$trayAppSourceDirEscaped" `
+        "-dMcpRemoteSourceDir=$mcpRemoteSourceDirEscaped" `
+        "-dLibrariesSourceDir=$librariesSourceDirEscaped" `
+        "-dIconPath=$iconPathEscaped" `
+        -ext WixUIExtension.dll -ext WixUtilExtension.dll
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Failed to compile Product.wxs!" -ForegroundColor Red
         exit 1
@@ -223,6 +249,11 @@ if ($LASTEXITCODE -ne 0) {
     & $candleExe "HarvestedFiles.wxs" -o "HarvestedFiles.wixobj" "-dTrayAppSourceDir=$trayAppSourceDirEscaped"
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Failed to compile HarvestedFiles.wxs!" -ForegroundColor Red
+        exit 1
+    }
+    & $candleExe "HarvestedLibraries.wxs" -o "HarvestedLibraries.wixobj" "-dLibrariesSourceDir=$librariesSourceDirEscaped"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Failed to compile HarvestedLibraries.wxs!" -ForegroundColor Red
         exit 1
     }
     
@@ -237,7 +268,7 @@ if ($LASTEXITCODE -ne 0) {
     } else { 
         "$binDir\SpiceServiceTray.msi" 
     }
-    & $lightExe "Product.wixobj" "HarvestedFiles.wixobj" -out $msiOutputPath -ext WixUIExtension.dll -ext WixUtilExtension.dll -cultures:en-us -sice:ICE38 -sice:ICE64 $locParam
+    & $lightExe "Product.wixobj" "HarvestedFiles.wixobj" "HarvestedLibraries.wixobj" -out $msiOutputPath -ext WixUIExtension.dll -ext WixUtilExtension.dll -cultures:en-us -sice:ICE38 -sice:ICE64 $locParam
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Failed to link MSI!" -ForegroundColor Red
         exit 1

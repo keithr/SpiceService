@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <Product Id="*" Name="SpiceService Tray Application" Language="1033" Version="!(bind.FileVersion.SpiceServiceTray.exe)" Manufacturer="SpiceService" UpgradeCode="a1b2c3d4-e5f6-7890-abcd-ef1234567890">
     <Package InstallerVersion="500" Compressed="yes" InstallScope="perUser" Description="SpiceService Tray Application - Circuit Simulation API" />
@@ -153,4 +153,3 @@
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
   </Product>
 </Wix>
-

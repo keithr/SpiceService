@@ -1,11 +1,10 @@
-SpiceService
-============
+# SpiceService
+
+**Circuit Simulation Software with MCP Server Integration**
 
 Copyright (c) 2025 Keith Rule
 
-This software is free for personal, non-commercial use. Commercial use requires a commercial license.
-
-SpiceService is a comprehensive .NET 8 solution for SPICE-based circuit simulation, providing a clean API, MCP (Model Context Protocol) server, and Windows tray application for managing circuit simulation services. The project enables circuit design, analysis, and visualization through both programmatic APIs and MCP protocol integration.
+SpiceService is a comprehensive circuit simulation application that provides powerful SPICE-based circuit analysis through an easy-to-use Windows tray application and MCP (Model Context Protocol) server integration. Perfect for circuit designers, electronics enthusiasts, and AI-powered development workflows.
 
 ## Quick Install
 
@@ -14,1094 +13,447 @@ A pre-built MSI installer is available in the `dist` directory:
 - **Installation**: Double-click the MSI file to install (per-user installation, no administrator privileges required)
 - **Includes**: Tray application, MCP server, and 500+ SPICE component libraries
 
-To build the installer yourself, see the [Installing via MSI](#installing-via-msi) section below.
+## Features
 
-Projects
---------
-- `SpiceSharp.Api.Core`: Core models and services (AC/DC/transient analysis, netlist, components)
-- `SpiceSharp.Api.Core.Tests`: Unit tests for the core library
-- `SpiceSharp.Api.Plot`: Plotting library for visualizing circuit analysis results (line, Bode, bar, scatter plots)
-- `SpiceSharp.Api.Plot.Tests`: Unit tests for the plotting library
-- `SpiceSharp.Api.Web`: MCP (Model Context Protocol) server for circuit simulation
-- `SpiceSharp.Api.Tray`: Windows Forms tray application for managing the MCP service
-- `McpRemote`: Stdio ↔ HTTP proxy for IDE integration (enables IDEs to connect via stdio MCP protocol)
-- `SpiceServiceTray.Installer`: WiX installer project for the tray application
-- `SimpleLEDTest`: Sample console application demonstrating basic usage (not in solution)
-- `TestWaveformApi`: Test application for waveform functionality (not in solution)
+### Circuit Simulation
+- **DC Analysis**: Operating point and voltage/current sweeps
+- **AC Analysis**: Frequency response (Bode plots) with magnitude and phase
+- **Transient Analysis**: Time-domain simulation with customizable waveforms
+- **Parameter Sweeps**: Analyze circuit behavior across component value ranges
+- **Temperature Sweeps**: Evaluate circuit performance across temperature ranges
+- **Noise Analysis**: Circuit noise characteristics
+- **Impedance Analysis**: Frequency-dependent impedance measurements
 
-Prerequisites
--------------
-- .NET SDK 8.0 or later
-- Visual Studio 2022 (recommended) or VS Code with C# extension
-- Windows (required for `SpiceSharp.Api.Tray` and installer projects)
+### Component Library
+- **500+ SPICE Libraries**: Comprehensive component database from KiCad Spice Library
+- **Component Search**: Fast search across all library files
+- **Subcircuit Support**: Reusable circuit blocks including speaker models
+- **Speaker Database**: Thiele-Small parameter database for loudspeaker design
+- **Model Definitions**: Support for diodes, BJTs, MOSFETs, JFETs, and more
 
-NuGet Packages
---------------
-- **SpiceSharp**: 3.2.3 (core simulation library)
-- **SpiceSharpBehavioral**: 3.2.0 (behavioral sources with expressions)
-- **OxyPlot.Core**: 2.1.2 (plotting library for chart generation)
-- **OxyPlot.SkiaSharp**: 2.1.2 (PNG export support for plots)
+### Speaker Design Tools
+- **Speaker Search**: Find speakers by Thiele-Small parameters (FS, QTS, VAS, etc.)
+- **Enclosure Design**: Calculate optimal sealed or vented box designs
+- **Crossover Compatibility**: Check woofer/tweeter compatibility for crossover design
+- **Speaker Subcircuits**: Pre-built SPICE models for real speaker drivers
 
-Build
------
-```bash
-# Build entire solution (Debug configuration)
-dotnet build SpiceService.sln
-
-# Build Release configuration
-dotnet build SpiceService.sln --configuration Release
-
-# Build specific project
-dotnet build SpiceSharp.Api.Core/SpiceSharp.Api.Core.csproj
-```
-
-**Build Status**: ✅ Solution builds successfully in both Debug and Release configurations.
-
-Test
-----
-```bash
-# Run all tests
-dotnet test SpiceService.sln
-
-# Run tests for specific project
-dotnet test SpiceSharp.Api.Core.Tests/SpiceSharp.Api.Core.Tests.csproj
-```
-
-Run MCP Server
---------------
-```bash
-# Start the MCP server
-dotnet run --project SpiceSharp.Api.Web
-
-# Specify custom port
-dotnet run --project SpiceSharp.Api.Web -- --port=8080
-
-# Disable discovery service
-dotnet run --project SpiceSharp.Api.Web -- --no-discovery
-
-# Custom discovery port
-dotnet run --project SpiceSharp.Api.Web -- --discovery-port=9999
-```
-
-The MCP server will be available at `http://localhost:8081/mcp` (or the configured port). The server uses JSON-RPC 2.0 protocol and supports MCP tools for circuit simulation.
-
-Run Tray Application
---------------------
-
-The tray application (`SpiceSharp.Api.Tray`) is a Windows Forms system tray application that provides a user-friendly interface for managing the MCP server and circuit simulation services.
-
-### Running from Source
-```bash
-dotnet run --project SpiceSharp.Api.Tray
-```
-
-### Installing via MSI
-
-A Windows Installer (MSI) package is available for easy installation:
-
-1. **Build the installer:**
-   ```powershell
-   cd SpiceServiceTray.Installer
-   .\build-installer.ps1
-   ```
-   The MSI will be created at `dist\SpiceServiceTray.msi`
-
-2. **Install:**
-   - Right-click `SpiceServiceTray.msi` and select "Install"
-   - Or double-click and follow the installation wizard
-   - Installation is per-user (no administrator privileges required)
-
-3. **Installation Location:**
-   - Application: `%LocalAppData%\SpiceService\Tray\`
-   - Libraries: `%LocalAppData%\SpiceService\Tray\libraries\`
-   - Start Menu shortcuts are created automatically
-
-### Tray Application Features
-
-- **System Tray Integration**: Runs in the Windows system tray with a custom icon
-- **MCP Server Management**: Automatically starts and manages the MCP server
-- **Auto-Start on Login**: Optional automatic startup when Windows starts
-- **Network Visibility Control**: Toggle between localhost-only and network-accessible modes
-- **IDE Integration Configuration**: Dialog-based configuration for AI-powered IDEs (Claude Desktop, Cursor AI, VS Code, Windsurf)
-- **Circuit Management**: View and manage circuits through a GUI dialog
-- **Circuit Export**: Export circuits as SPICE netlists
-- **Log Viewer**: Built-in log viewer for debugging and monitoring
-- **Status Monitoring**: Real-time status display showing server state
-- **Discovery Service**: Automatic UDP-based service discovery for MCP clients
-- **Library Management**: Automatic discovery of SPICE component libraries from multiple locations
-
-### Tray Application Context Menu
-
-Right-click the tray icon to access:
-- **Status**: Current server status (Running/Error)
-- **Auto-start on Login**: Toggle automatic startup
-- **Network Accessible**: Toggle network visibility (requires restart)
-- **Configure IDE Integration...**: Configure AI-powered IDEs to connect to SpiceService
-- **List Circuits...**: View and manage all circuits
-- **Export Circuit...**: Export circuit as SPICE netlist
-- **View Logs...**: Open log viewer window
-- **About...**: Application information and version
-- **Exit**: Close the application
-
-### Library Path Configuration
-
-The tray application automatically searches for SPICE component libraries (`.lib` files) in the following order:
-
-1. **User Libraries** (highest priority): `Documents\SpiceService\libraries\`
-2. **Installed Libraries**: Next to the executable in `libraries\` subdirectory
-3. **Development Libraries**: Source directory `libraries\` (for development builds)
-4. **Sample Libraries**: `sample_libraries\` directory (for testing)
-
-The application includes 500+ SPICE library files from the KiCad Spice Library project, covering a wide range of components including:
-- Semiconductors (diodes, BJTs, MOSFETs, JFETs)
-- Passive components
-- Integrated circuits
-- And more
-
-### Network Configuration
-
-The tray application can operate in two modes:
-
-- **Localhost Only** (default): MCP server is only accessible from the local machine
-- **Network Accessible**: MCP server can be accessed from other devices on the network
-
-Network visibility can be toggled from the tray menu, but requires an application restart to take effect. The setting is persisted in the Windows registry.
-
-### Discovery Service
-
-The tray application includes a UDP-based discovery service that broadcasts server availability on the local network. This allows MCP clients to automatically discover and connect to the server without manual configuration.
-
-- **UDP Port**: 19847 (default)
-- **Broadcast Interval**: 30 seconds
-- **Protocol**: JSON-based announcement messages
-
-See `mcp_discovery_spec.md` for detailed specification.
-
-IDE Integration
----------------
-
-SpiceService includes built-in support for configuring AI-powered IDEs to connect via the MCP (Model Context Protocol) protocol. The tray application provides a dialog-based configuration system that automatically detects installed IDEs and configures them to connect to SpiceService.
-
-### Supported IDEs
-
-- **Claude Desktop**: Automatic configuration via `%APPDATA%\Claude\mcp.json`
-- **Cursor AI**: Automatic configuration via `%USERPROFILE%\.cursor\mcp.json`
-- **VS Code**: Manual setup with copy-paste JSON configuration (workspace-level)
-- **Windsurf**: Automatic configuration via `%USERPROFILE%\.codeium\windsurf\mcp.json`
-
-### Configuration via Tray Application
-
-1. **Open Configuration Dialog**: Right-click the tray icon → **Configure IDE Integration...**
-2. **Select IDEs**: Check the IDEs you want to configure
-3. **Choose Mode**: 
-   - **Append** (recommended): Adds SpiceService to existing MCP configuration
-   - **Overwrite**: Replaces entire MCP configuration file
-4. **Backup Option**: Optionally create timestamped backups before modifying files
-5. **Apply**: Click **Apply** to configure selected IDEs
-
-### McpRemote.exe Proxy
-
-SpiceService uses `McpRemote.exe`, a lightweight stdio ↔ HTTP proxy that enables IDEs using stdio-based MCP protocol to connect to SpiceService's HTTP-based MCP server. This eliminates the need for Node.js or other external dependencies.
-
-**Features:**
-- **Auto-Discovery**: Automatically finds the current SpiceService endpoint (ports 8081-8090)
-- **Stdio Protocol**: Bridges stdio-based MCP clients to HTTP-based MCP servers
-- **JSON-RPC Compliant**: Properly handles notifications and request/response patterns
-- **Colocated**: Automatically copied to tray app output directory during build
-
-**Usage:**
-- **Auto-discovery mode**: `McpRemote.exe auto` or `McpRemote.exe --discover`
-- **Explicit URL**: `McpRemote.exe http://localhost:8081/mcp`
-
-The proxy is automatically configured by the IDE Integration dialog and is included in the MSI installer.
-
-### Manual Configuration
-
-If you prefer to configure IDEs manually, use the following configuration:
-
-**Claude Desktop** (`%APPDATA%\Claude\mcp.json`):
-```json
-{
-  "mcpServers": {
-    "spice-simulator": {
-      "command": "C:\\Users\\YourName\\AppData\\Local\\SpiceService\\Tray\\McpRemote.exe",
-      "args": ["auto"]
-    }
-  }
-}
-```
-
-**Cursor AI** (`%USERPROFILE%\.cursor\mcp.json`):
-```json
-{
-  "mcpServers": {
-    "spice-simulator": {
-      "command": "C:\\Users\\YourName\\AppData\\Local\\SpiceService\\Tray\\McpRemote.exe",
-      "args": ["auto"]
-    }
-  }
-}
-```
-
-**VS Code** (workspace `.vscode/mcp.json`):
-```json
-{
-  "mcpServers": {
-    "spice-simulator": {
-      "command": "C:\\Users\\YourName\\AppData\\Local\\SpiceService\\Tray\\McpRemote.exe",
-      "args": ["auto"]
-    }
-  }
-}
-```
-
-**Windsurf** (`%USERPROFILE%\.codeium\windsurf\mcp.json`):
-```json
-{
-  "mcpServers": {
-    "spice-simulator": {
-      "command": "C:\\Users\\YourName\\AppData\\Local\\SpiceService\\Tray\\McpRemote.exe",
-      "args": ["auto"]
-    }
-  }
-}
-```
-
-**Note**: Replace `C:\\Users\\YourName\\AppData\\Local\\SpiceService\\Tray\\McpRemote.exe` with the actual installation path. The IDE Integration dialog automatically uses the correct path.
-
-### Development Builds
-
-When running from source, `McpRemote.exe` is automatically copied to the tray app's output directory (`SpiceSharp.Api.Tray\bin\Debug\net8.0-windows\` or `Release\net8.0-windows\`) during build, ensuring it's always colocated with the tray app executable.
-
-Run sample
-----------
-```bash
-# Note: SimpleLEDTest is not part of the solution
-dotnet run --project SimpleLEDTest/SimpleLEDTest.csproj
-```
-
-Features
---------
-
-### Component Types
-- Passive components: Resistor, Capacitor, Inductor
-- Diodes (with models)
-- Voltage and Current Sources (DC, AC, and Transient waveforms)
-- Dependent Sources: VCVS, VCCS, CCVS, CCCS (voltage/current controlled voltage/current sources)
-- **Behavioral Sources**: Voltage/Current sources with mathematical expressions
-  - **Note**: Expressions must use literal numeric values, not parameter names (see `BEHAVIORAL_SOURCES.md` for details)
-- Semiconductors: BJT (NPN/PNP), MOSFET (N/P), JFET (N/P)
-- Switches: Voltage-controlled and current-controlled switches
-- Mutual Inductance (Transformers)
-- **Subcircuits**: Reusable circuit blocks defined in library files (see [Subcircuits](#subcircuits))
-  - **Speaker Subcircuits**: Loudspeaker drivers with Thiele-Small parameters and metadata (see [Speaker Design Tools](#speaker-design-tools))
-
-### Analysis Types
-- DC Operating Point
-- DC Sweep
-- Transient (Time-Domain) Analysis
-- AC (Frequency-Domain) Analysis
-- Parameter Sweeps
-- Temperature Sweeps
-
-### Plotting & Visualization
-- **Line Plots**: For DC sweep and transient analysis results
-- **Bode Plots**: Two-panel plots (magnitude and phase) for AC analysis
-- **Bar Charts**: For operating point comparisons
-- **Scatter Plots**: For general X-Y data visualization
-- **Export Formats**: SVG (scalable vector graphics) and PNG (raster graphics)
-- **Customization**: Titles, axis labels, logarithmic scales, custom colors, grid/legend options
-- **MCP Tool**: `plot_results` tool available via MCP server for generating plots from analysis results
+### Visualization
+- **Line Plots**: Time-domain and DC sweep visualization
+- **Bode Plots**: Frequency response with magnitude (dB) and phase (degrees)
+- **Bar Charts**: Operating point comparisons
+- **Scatter Plots**: Custom X-Y data visualization
+- **Schematic Rendering**: Visual circuit diagrams (SVG format)
+- **Export Formats**: PNG and SVG output
 
 ### Waveform Support
-The MCP server supports time-domain waveforms for voltage and current sources, enabling dynamic circuit simulation.
+- **Sine Waves**: AC signals with amplitude, frequency, phase, damping
+- **Pulse Waves**: Digital square pulses for switching circuits
+- **PWL (Piecewise Linear)**: Custom voltage/current profiles
+- **SFFM/AM**: Frequency and amplitude modulation for RF circuits
 
-#### Sine Waveform
-Sine waveforms can be specified using either naming convention:
+### MCP Server Integration
+- **JSON-RPC 2.0 Protocol**: Standard MCP protocol support
+- **AI IDE Integration**: Works with Claude Desktop, Cursor AI, VS Code, Windsurf
+- **Auto-Discovery**: Automatic server discovery on local network
+- **Network Access**: Configurable localhost-only or network-accessible modes
 
-**Option 1: Explicit waveform type**
+### Tray Application
+- **System Tray Integration**: Runs quietly in the background
+- **Auto-Start**: Optional automatic startup on Windows login
+- **Circuit Management**: View, create, and manage multiple circuits
+- **Circuit Export**: Export circuits as SPICE netlists
+- **Log Viewer**: Built-in debugging and monitoring
+- **IDE Configuration**: One-click setup for AI-powered IDEs
+
+## Installation
+
+### Option 1: MSI Installer (Recommended)
+
+1. Download `dist\SpiceServiceTray.msi`
+2. Double-click to install (no administrator privileges required)
+3. Application installs to: `%LocalAppData%\SpiceService\Tray\`
+4. Start Menu shortcuts are created automatically
+
+### Option 2: Build from Source
+
+**Prerequisites:**
+- .NET SDK 8.0 or later
+- Windows (required for tray application)
+- WiX Toolset v3.11+ (for building installer)
+
+**Build Steps:**
+```bash
+# Build entire solution
+dotnet build SpiceService.sln --configuration Release
+
+# Build and run tray application
+dotnet run --project SpiceSharp.Api.Tray/SpiceSharp.Api.Tray.csproj
+```
+
+**Build Installer:**
+```powershell
+cd SpiceServiceTray.Installer
+.\build-installer.ps1
+```
+
+## Usage
+
+### Starting the Application
+
+After installation, SpiceService runs automatically in the system tray. Look for the SpiceService icon in your Windows system tray.
+
+**Right-click the tray icon** to access:
+- **Status**: View current server status
+- **Auto-start on Login**: Enable/disable automatic startup
+- **Network Accessible**: Toggle network visibility
+- **Configure IDE Integration...**: Set up AI IDE connections
+- **List Circuits...**: View and manage circuits
+- **Export Circuit...**: Export as SPICE netlist
+- **View Logs...**: Open log viewer
+- **About...**: Application information
+- **Exit**: Close application
+
+### Using with AI IDEs
+
+SpiceService integrates seamlessly with AI-powered development environments:
+
+1. **Start SpiceService**: Ensure the tray application is running
+2. **Configure IDE**: Right-click tray icon → **Configure IDE Integration...**
+3. **Select IDEs**: Check the IDEs you want to configure
+4. **Apply**: Click **Apply** to configure
+5. **Restart IDE**: Restart your IDE to connect
+
+**Supported IDEs:**
+- Claude Desktop
+- Cursor AI
+- VS Code (with MCP extension)
+- Windsurf
+
+### Basic Circuit Simulation Workflow
+
+#### 1. Create a Circuit
 ```json
 {
-  "name": "Vin",
-  "componentType": "voltage_source",
-  "nodes": ["input", "0"],
-  "value": 0,
-  "parameters": {
-    "waveform": "sine",
-    "amplitude": 0.5,
-    "frequency": 1000.0,
-    "offset": 0.0,
-    "delay": 0.0,
-    "damping": 0.0,
-    "phase": 0.0
-  }
-}
-```
-
-**Option 2: Auto-detected from parameter names**
-```json
-{
-  "name": "Vin",
-  "componentType": "voltage_source",
-  "nodes": ["input", "0"],
-  "value": 0,
-  "parameters": {
-    "sine_amplitude": 0.5,
-    "sine_frequency": 40.0
-  }
-}
-```
-
-**Parameters:**
-- `amplitude` / `sine_amplitude` (required): Peak amplitude in volts or amperes
-- `frequency` / `sine_frequency` (required): Frequency in Hz
-- `offset` (optional, default: 0): DC offset
-- `delay` (optional, default: 0): Time delay before waveform starts (seconds)
-- `damping` (optional, default: 0): Damping factor (1/seconds)
-- `phase` (optional, default: 0): Phase shift in degrees
-
-**SPICE Netlist Export:**
-Waveforms are automatically exported in SPICE format:
-```
-Vin input 0 SIN(0 0.5 40 0 0)
-```
-
-#### Pulse Waveform
-Pulse waveforms generate periodic square pulses for digital circuit simulation.
-
-```json
-{
-  "name": "Vpulse",
-  "componentType": "voltage_source",
-  "nodes": ["input", "0"],
-  "value": 0,
-  "parameters": {
-    "waveform": "pulse",
-    "v1": 0.0,
-    "v2": 5.0,
-    "td": 0.0,
-    "tr": 1e-6,
-    "tf": 1e-6,
-    "pw": 1e-3,
-    "per": 2e-3
-  }
-}
-```
-
-**Parameters:**
-- `v1` (required): Initial voltage value
-- `v2` (required): Pulsed voltage value
-- `td` (required): Time delay before pulse starts (seconds)
-- `tr` (required): Rise time (seconds)
-- `tf` (required): Fall time (seconds)
-- `pw` (required): Pulse width (seconds)
-- `per` (required): Period (seconds)
-
-**SPICE Netlist Export:**
-```
-Vpulse input 0 PULSE(0 5 0 1e-6 1e-6 1e-3 2e-3)
-```
-
-#### PWL (Piecewise Linear) Waveform
-PWL waveforms allow custom voltage/current profiles defined by time-value pairs.
-
-```json
-{
-  "name": "Vpwl",
-  "componentType": "voltage_source",
-  "nodes": ["input", "0"],
-  "value": 0,
-  "parameters": {
-    "waveform": "pwl",
-    "points": [
-      [0.0, 0.0],
-      [1e-3, 5.0],
-      [2e-3, 0.0],
-      [3e-3, -5.0],
-      [4e-3, 0.0]
-    ]
-  }
-}
-```
-
-**Parameters:**
-- `points` (required): Array of `[time, voltage]` or `[time, current]` pairs
-  - Each pair is an array of two numbers: `[time_in_seconds, value_in_volts_or_amps]`
-
-**SPICE Netlist Export:**
-```
-Vpwl input 0 PWL(0 0 0.001 5 0.002 0 0.003 -5 0.004 0)
-```
-
-#### SFFM (Single-Frequency FM) Waveform
-SFFM waveforms generate frequency-modulated signals for RF circuit simulation.
-
-```json
-{
-  "name": "Vsffm",
-  "componentType": "voltage_source",
-  "nodes": ["input", "0"],
-  "value": 0,
-  "parameters": {
-    "waveform": "sffm",
-    "vo": 1.0,
-    "va": 0.5,
-    "fc": 1e6,
-    "mdi": 0.1,
-    "fs": 1e3
-  }
-}
-```
-
-**Parameters:**
-- `vo` (required): DC offset voltage
-- `va` (required): Amplitude of modulation
-- `fc` (required): Carrier frequency (Hz)
-- `mdi` (required): Modulation index
-- `fs` (required): Signal frequency (Hz)
-
-**Note:** Netlist export is supported. Simulation support pending SpiceSharp library update.
-
-**SPICE Netlist Export:**
-```
-Vsffm input 0 SFFM(1 0.5 1e6 0.1 1e3)
-```
-
-#### AM (Amplitude Modulation) Waveform
-AM waveforms generate amplitude-modulated signals for RF circuit simulation.
-
-```json
-{
-  "name": "Vam",
-  "componentType": "voltage_source",
-  "nodes": ["input", "0"],
-  "value": 0,
-  "parameters": {
-    "waveform": "am",
-    "vo": 1.0,
-    "va": 0.5,
-    "mf": 1e3,
-    "fc": 1e6
-  }
-}
-```
-
-**Parameters:**
-- `vo` (required): DC offset voltage
-- `va` (required): Amplitude of modulation
-- `mf` (required): Modulation frequency (Hz)
-- `fc` (required): Carrier frequency (Hz)
-
-**Note:** Netlist export is supported. Simulation support pending SpiceSharp library update.
-
-**SPICE Netlist Export:**
-```
-Vam input 0 AM(1 0.5 1e3 1e6)
-```
-
-MCP Server
------------
-
-The `SpiceSharp.Api.Web` project provides an MCP (Model Context Protocol) server for circuit simulation. The server uses JSON-RPC 2.0 protocol over HTTP and exposes tools for circuit management, component/model management, analysis operations, plotting, and library search.
-
-### MCP Server Architecture
-
-The MCP server is embedded within the tray application, providing an in-process HTTP server that handles MCP protocol requests. This eliminates the need for a separate web server process and simplifies deployment.
-
-### MCP Endpoint
-
-The MCP server exposes a single endpoint:
-- **POST** `/mcp` - JSON-RPC 2.0 endpoint for all MCP operations
-
-### Server Configuration
-
-- **Default Port**: 8081 (automatically finds available port if in use)
-- **Protocol**: JSON-RPC 2.0 over HTTP
-- **CORS**: Enabled for cross-origin requests
-- **Network Binding**: Configurable (localhost-only or network-accessible)
-
-### Library Search
-
-The MCP server includes a comprehensive library search service that can search through 500+ SPICE component library files:
-
-- **Tool**: `library_search`
-- **Search Capabilities**: Component models (diodes, transistors, etc.) and subcircuits by name
-- **Library Sources**: Automatically indexed from configured library paths on startup
-- **Response Format**: JSON with model/subcircuit definitions, parameters, and metadata
-- **Speaker Database Integration**: Speaker subcircuits found via `search_speakers_by_parameters` are validated against the library index to ensure they can be used in simulation
-
-### Available MCP Tools
-
-The server provides a comprehensive set of tools organized into categories:
-
-#### Circuit Management
-- `create_circuit` - Create a new circuit or switch to existing circuit
-- `list_circuits` - List all circuits with details
-- `get_circuit` - Get circuit details by ID
-- `get_active_circuit` - Get currently active circuit
-- `delete_circuit` - Delete a circuit
-
-#### Component Management
-- `add_component` - Add a component to a circuit
-- `list_components` - List all components in a circuit
-- `get_component` - Get a specific component by name
-- `delete_component` - Remove a component from a circuit
-
-#### Model Management
-- `define_model` - Define a semiconductor model (diode, BJT, MOSFET, JFET)
-- `list_models` - List all models in a circuit
-- `get_model` - Get a specific model by name
-
-#### Analysis Operations
-- `run_operating_point` - Calculate DC operating point
-- `run_dc_analysis` - Run DC sweep analysis
-- `run_transient_analysis` - Run transient (time-domain) analysis
-- `run_ac_analysis` - Run AC (frequency-domain) analysis
-- `run_parameter_sweep` - Parameter sweep analysis
-- `run_temperature_sweep` - Temperature sweep analysis
-- `run_noise_analysis` - Noise analysis
-- `run_impedance_analysis` - Impedance analysis
-- `export_netlist` - Export circuit as SPICE netlist
-
-#### Visualization
-- `plot_results` - Generate plots from analysis results (line, Bode, bar, scatter)
-- `render_schematic` - Render circuit as SVG schematic diagram (via NetlistSvg)
-
-#### Library Search
-- `search_libraries` - Search component libraries for parts
-- `get_library_info` - Get information about library files
-
-#### Speaker Design Tools
-- `search_speakers_by_parameters` - Search speaker database by Thiele-Small parameters and specifications
-- `calculate_enclosure_design` - Calculate optimal speaker enclosure design (sealed or vented box)
-- `check_crossover_compatibility` - Check compatibility between woofer and tweeter for crossover design
-
-#### Service Management
-- `get_service_status` - Get current service status and configuration
-
-### MCP Tool Usage
-
-All tools are accessed via JSON-RPC 2.0 requests to the `/mcp` endpoint:
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
   "method": "tools/call",
   "params": {
     "name": "create_circuit",
     "arguments": {
       "circuit_id": "my_circuit",
-      "description": "My test circuit",
-      "make_active": true
+      "description": "My first circuit"
     }
   }
 }
 ```
 
-### Plotting Results (`plot_results` MCP Tool)
-
-The `plot_results` tool generates visualizations from circuit analysis results. It supports multiple plot types and export formats.
-
-### Subcircuits
-
-Subcircuits are reusable circuit blocks defined in SPICE library files (`.lib`). They allow you to create complex circuits by instantiating pre-defined subcircuit definitions multiple times.
-
-#### Adding Subcircuits via MCP
-
-**Step 1: Search for available subcircuits**
+#### 2. Add Components
 ```json
 {
-  "tool": "library_search",
-  "arguments": {
-    "query": "speaker",
-    "type": "subcircuit"
-  }
-}
-```
-
-**Step 2: Add subcircuit instance to circuit**
-```json
-{
-  "tool": "add_component",
-  "arguments": {
-    "name": "Xtweeter",
-    "component_type": "subcircuit",
-    "nodes": ["tw_out", "0"],
-    "model": "275_030"
-  }
-}
-```
-
-**Parameters:**
-- `name` (required): Instance name (must start with 'X' in SPICE, but not required here)
-- `component_type` (required): Must be `"subcircuit"`
-- `nodes` (required): Array of connection nodes (must match subcircuit definition pin count)
-- `model` (required): Name of the subcircuit definition (from library search results)
-
-#### Importing Netlists with Subcircuits
-
-Subcircuits can be imported from SPICE netlists using X-lines:
-
-```spice
-* Example netlist with subcircuit
-V1 input 0 AC 1
-X1 input 0 test_speaker
-```
-
-The `import_netlist` tool automatically:
-- Parses X-lines to identify subcircuit instances
-- Loads subcircuit definitions from indexed libraries
-- Registers definitions before creating instances
-- Validates node count matches definition pin count
-
-#### Exporting Circuits with Subcircuits
-
-When exporting a circuit containing subcircuits, the `export_netlist` tool formats them as X-lines:
-
-```spice
-X1 node1 node2 subcircuit_name
-```
-
-#### Validation
-
-The `validate_circuit` tool checks for subcircuit-related issues:
-- Missing subcircuit definitions
-- Node count mismatches (instance nodes vs. definition pins)
-- Multiple instances of the same subcircuit (verifies definition reuse)
-
-#### Error Messages
-
-Clear, actionable error messages are provided for common issues:
-- Missing `model` parameter: "Subcircuit component 'X1' requires a model (subcircuit name) to be specified."
-- Definition not found: "Subcircuit component 'X1' references definition 'test_speaker' which was not found in the library. Use library_search to find available subcircuits."
-- Node count mismatch: "Subcircuit component 'X1' has 3 node(s), but definition 'test_speaker' expects 2 pin(s)."
-
-#### Library Service Configuration
-
-The LibraryService is responsible for indexing SPICE library files (`.lib`) and making subcircuit definitions available for use in circuits. It is automatically configured in both the Web API and Tray application.
-
-**Library Paths (Priority Order):**
-1. **User Libraries**: `Documents\SpiceService\libraries` (highest priority)
-2. **Installed Libraries**: `libraries` subdirectory next to the executable
-3. **Development Libraries**: Source directory `libraries` folder (for development builds)
-
-**Database-Library Connection:**
-- The speaker database (SQLite) stores metadata about speaker subcircuits (Thiele-Small parameters, specifications, etc.)
-- The library index (in-memory) stores actual subcircuit definitions from `.lib` files
-- When libraries are indexed, the database is automatically populated with speaker metadata
-- Both must be in sync for subcircuits to be usable: database provides searchable metadata, library index provides circuit definitions
-
-**Troubleshooting:**
-- **"Subcircuit not found" errors**: Run `reindex_libraries` to update the library index
-- **"Subcircuit found in database but not in library"**: The database and library index are out of sync. Run `reindex_libraries` or ensure library files are in configured paths
-- **"Library service is not configured"**: LibraryService must be registered in dependency injection (automatically done in Web API and Tray application)
-
-**Reindexing Libraries:**
-```json
-{
-  "tool": "reindex_libraries",
-  "arguments": {}
-}
-```
-This tool re-scans all configured library paths and updates both the library index and speaker database.
-
-**Basic Usage:**
-```json
-{
-  "circuit_id": "my_circuit",
-  "signals": ["v(out)", "i(R1)"],
-  "plot_type": "auto",
-  "image_format": "png",
-  "output_format": ["image"]
-}
-```
-
-**Plot Types:**
-- `auto`: Automatically selects based on analysis type (line for DC/transient, Bode for AC, bar for operating point)
-- `line`: Standard line plot for time-domain or DC sweep data
-- `bode`: Two-panel plot (magnitude in dB and phase in degrees) for AC analysis
-- `bar`: Bar chart for operating point comparisons
-- `scatter`: Scatter plot for custom X-Y relationships
-
-**Export Formats:**
-- `image`: Base64-encoded image (recommended for MCP clients)
-- `text`: Raw SVG string (for SVG format only, useful when client can't display SVG images)
-- `file`: Save to disk (note: filesystem isolation may prevent client access)
-
-**Image Formats:**
-- `png`: Raster graphics (recommended, displays in all MCP clients)
-- `svg`: Scalable vector graphics (may not display in all clients, use `text` format as fallback)
-
-**Customization Options:**
-```json
-{
-  "options": {
-    "title": "Custom Plot Title",
-    "x_label": "Frequency (Hz)",
-    "y_label": "Magnitude (dB)",
-    "x_scale": "log",
-    "y_scale": "linear",
-    "grid": true,
-    "legend": true,
-    "colors": ["#FF0000", "#00FF00"],
-    "width": 1200,
-    "height": 800,
-    "invert_signals": false
-  }
-}
-```
-
-**Notes:**
-- Analysis results are cached automatically - run an analysis first, then plot
-- Bode plots automatically scale magnitude axis to show negative dB values (important for filters)
-- File saves may report success but files may not be accessible due to filesystem isolation - use `image` format and save manually
-- SVG images may not display in all MCP clients - PNG is recommended
-
-### Quick Start Example
-
-```json
-// 1. Create a circuit
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "tools/call",
-  "params": {
-    "name": "create_circuit",
-    "arguments": {
-      "circuit_id": "led_test",
-      "description": "LED IV curve"
-    }
-  }
-}
-
-// 2. Define a diode model
-{
-  "jsonrpc": "2.0",
-  "id": 2,
-  "method": "tools/call",
-  "params": {
-    "name": "define_model",
-    "arguments": {
-      "circuit_id": "led_test",
-      "model_name": "RED_LED",
-      "model_type": "diode",
-      "parameters": {
-        "IS": 1e-15,
-        "N": 3.5,
-        "EG": 1.6,
-        "RS": 0.5
-      }
-    }
-  }
-}
-
-// 3. Add components
-{
-  "jsonrpc": "2.0",
-  "id": 3,
   "method": "tools/call",
   "params": {
     "name": "add_component",
     "arguments": {
-      "circuit_id": "led_test",
+      "circuit_id": "my_circuit",
       "name": "V1",
       "component_type": "voltage_source",
-      "nodes": ["anode", "0"],
-      "value": 0.0
+      "nodes": ["input", "0"],
+      "value": 5.0,
+      "parameters": {"ac": 1}
     }
   }
 }
+```
 
+#### 3. Run Analysis
+```json
 {
-  "jsonrpc": "2.0",
-  "id": 4,
   "method": "tools/call",
   "params": {
-    "name": "add_component",
+    "name": "run_ac_analysis",
     "arguments": {
-      "circuit_id": "led_test",
-      "name": "D1",
-      "component_type": "diode",
-      "nodes": ["anode", "0"],
-      "model": "RED_LED"
+      "circuit_id": "my_circuit",
+      "start_frequency": 20,
+      "stop_frequency": 20000,
+      "number_of_points": 100,
+      "signals": ["v(input)"]
     }
   }
 }
+```
 
-// 4. Run DC sweep analysis
+#### 4. Visualize Results
+```json
 {
-  "jsonrpc": "2.0",
-  "id": 5,
-  "method": "tools/call",
-  "params": {
-    "name": "run_dc_analysis",
-    "arguments": {
-      "circuit_id": "led_test",
-      "source": "V1",
-      "start": 0.0,
-      "stop": 5.0,
-      "step": 0.1,
-      "exports": ["i(D1)", "v(anode)"]
-    }
-  }
-}
-
-// 5. Plot results
-{
-  "jsonrpc": "2.0",
-  "id": 6,
   "method": "tools/call",
   "params": {
     "name": "plot_results",
     "arguments": {
-      "circuit_id": "led_test",
-      "signals": ["i(D1)"],
-      "plot_type": "line",
-      "image_format": "png",
-      "output_format": ["image"]
+      "circuit_id": "my_circuit",
+      "signals": ["v(input)"],
+      "plot_type": "bode",
+      "image_format": "png"
     }
   }
 }
 ```
 
-### Component Type Naming
+### Working with Subcircuits
 
-**Important**: Component types must be lowercase with underscores:
-- `resistor`, `capacitor`, `inductor`
-- `voltage_source`, `current_source`
-- `diode`, `bjt_npn`, `bjt_pnp`
-- `mosfet_n`, `mosfet_p`
-- `jfet_n`, `jfet_p`
-- `vcvs`, `vccs`, `ccvs`, `cccs`
-- `behavioral_voltage_source`, `behavioral_current_source`
-- `voltage_switch`, `current_switch`
+Subcircuits allow you to use pre-built circuit blocks, including speaker models:
 
-### Model Type Naming
-
-Model types must also be lowercase with underscores:
-- `diode`
-- `bjt_npn`, `bjt_pnp`
-- `mosfet_n`, `mosfet_p`
-- `jfet_n`, `jfet_p`
-- `voltage_switch`, `current_switch`
-
-### Behavioral Sources
-
-Behavioral sources allow mathematical expressions for voltage or current:
-
+#### 1. Search for Subcircuits
 ```json
 {
-  "name": "V1",
-  "component_type": "behavioral_voltage_source",
-  "nodes": ["out", "0"],
-  "parameters": {
-    "expression": "V(input) * 2.5"
+  "method": "tools/call",
+  "params": {
+    "name": "library_search",
+    "arguments": {
+      "query": "275_030",
+      "type": "subcircuit"
+    }
   }
 }
 ```
 
-**Important**: Expressions must use literal numeric values, not parameter names. For example:
-- ✅ Correct: `"V(input) * 5.1"`
-- ❌ Wrong: `"V(input) * {gain}"`
-
-See `BEHAVIORAL_SOURCES.md` for detailed documentation.
-
-### AC Analysis Requirements
-
-For AC analysis, voltage/current sources must have AC parameters configured:
-
+#### 2. Add Subcircuit to Circuit
 ```json
 {
-  "name": "Vin",
-  "component_type": "voltage_source",
-  "nodes": ["input", "0"],
-  "value": 0,
-  "parameters": {
-    "ac": 1.0,
-    "acphase": 0.0
+  "method": "tools/call",
+  "params": {
+    "name": "add_component",
+    "arguments": {
+      "circuit_id": "my_circuit",
+      "name": "Xspeaker",
+      "component_type": "subcircuit",
+      "model": "275_030",
+      "nodes": ["output", "0"]
+    }
   }
 }
 ```
 
-Development
------------
+#### 3. Import from Netlist
+You can also import complete circuits with subcircuits from SPICE netlists:
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "import_netlist",
+    "arguments": {
+      "circuit_name": "crossover",
+      "netlist": "V1 input 0 AC 1\nX1 input 0 275_030\n.end"
+    }
+  }
+}
+```
 
-### Code Organization
+### Speaker Design Workflow
 
-- **Core Library**: `SpiceSharp.Api.Core/` - Core models and services
-  - Services: `ComponentService`, `ACAnalysisService`, `DCAnalysisService`, `TransientAnalysisService`, etc.
-  - Models: `Circuit`, `ComponentDefinition`, `ModelDefinition`, `AnalysisResults`
-  
-- **Plotting Library**: `SpiceSharp.Api.Plot/` - Plot generation and visualization
-  - Plot types: Line, Bode, Bar, Scatter
-  - Export formats: SVG, PNG
-  - Uses OxyPlot for rendering
-  
-- **MCP Server**: `SpiceSharp.Api.Web/` - HTTP server and MCP protocol implementation
-  - `MCPService.cs` - Core MCP tool execution
-  - `DiscoveryService.cs` - UDP-based service discovery
-  - `LibraryService.cs` - Component library indexing and search
-  
-- **Tray Application**: `SpiceSharp.Api.Tray/` - Windows Forms tray application
-  - `TrayApplication.cs` - Main application logic and HTTP server hosting
-  - `AboutDialog.cs` - About dialog with version info
-  - `CircuitsDialog.cs` - Circuit management UI
-  - `LogDialog.cs` - Log viewer
-  - `ExportCircuitDialog.cs` - Circuit export UI
-  - `IDEConfigurationDialog.cs` - IDE integration configuration dialog
-  - `IDEConfigurationSuccessDialog.cs` - Configuration success feedback dialog
-  - `Services/IDEDetector.cs` - IDE detection service
-  - `Services/ConfigurationMerger.cs` - IDE configuration file management
-  - `Services/ConfigurationExecutor.cs` - Configuration execution orchestrator
-  - `Services/ConfigurationBackup.cs` - Configuration backup service
-  
-- **McpRemote**: `McpRemote/` - Stdio ↔ HTTP proxy for IDE integration
-  - `Program.cs` - Main proxy implementation (stdio ↔ HTTP bidirectional proxy)
-  - Auto-discovery support for finding SpiceService endpoint
-  - JSON-RPC 2.0 compliant notification handling
-  
-- **Installer**: `SpiceServiceTray.Installer/` - WiX-based MSI installer
-  - `Product.wxs` - Installer definition
-  - `build-installer.ps1` - Build script
-  - Includes icon integration and shortcut creation
+#### 1. Search for Speakers
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "search_speakers_by_parameters",
+    "arguments": {
+      "driver_type": ["tweeters"],
+      "diameter_min": 0.75,
+      "sensitivity_min": 88
+    }
+  }
+}
+```
 
-### Project Structure
+#### 2. Design Enclosure
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "calculate_enclosure_design",
+    "arguments": {
+      "model": "275_030",
+      "enclosure_type": "sealed",
+      "target_qtc": 0.707
+    }
+  }
+}
+```
+
+#### 3. Check Crossover Compatibility
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "check_crossover_compatibility",
+    "arguments": {
+      "woofer_model": "297_429",
+      "tweeter_model": "275_030",
+      "crossover_frequency": 2000,
+      "crossover_order": 2
+    }
+  }
+}
+```
+
+## Component Types
+
+### Passive Components
+- Resistors, Capacitors, Inductors
+- Mutual Inductance (Transformers)
+
+### Sources
+- Voltage Sources (DC, AC, Transient waveforms)
+- Current Sources
+- Behavioral Sources (mathematical expressions)
+
+### Semiconductors
+- Diodes (with custom models)
+- BJTs (NPN/PNP)
+- MOSFETs (N-channel/P-channel)
+- JFETs (N-channel/P-channel)
+- Switches (voltage/current controlled)
+
+### Dependent Sources
+- VCVS, VCCS, CCVS, CCCS (voltage/current controlled sources)
+
+### Subcircuits
+- Reusable circuit blocks from library files
+- Speaker models with Thiele-Small parameters
+- Custom subcircuit definitions
+
+## Library Management
+
+### Library Locations
+
+SpiceService automatically searches for SPICE library files (`.lib`) in this order:
+
+1. **User Libraries** (highest priority): `Documents\SpiceService\libraries\`
+2. **Installed Libraries**: `libraries\` subdirectory next to executable
+3. **Development Libraries**: Source directory `libraries\` folder
+
+### Adding Custom Libraries
+
+1. Create `Documents\SpiceService\libraries\` directory
+2. Copy your `.lib` files to this directory
+3. Restart SpiceService (libraries are indexed on startup)
+
+### Library Search
+
+Search for components and subcircuits:
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "library_search",
+    "arguments": {
+      "query": "2N2222",
+      "limit": 10
+    }
+  }
+}
+```
+
+## Network Configuration
+
+### Localhost Only (Default)
+- MCP server accessible only from local machine
+- Most secure option
+- Recommended for single-user setups
+
+### Network Accessible
+- MCP server accessible from other devices on network
+- Enable from tray menu: **Network Accessible**
+- Requires application restart
+- Useful for remote IDE connections
+
+### Discovery Service
+- Automatic UDP-based service discovery
+- Broadcasts server availability on local network
+- Port: 19847 (default)
+- Allows automatic client connection without manual configuration
+
+## Troubleshooting
+
+### Application Won't Start
+- Check if another instance is already running (only one instance allowed)
+- Verify .NET 8.0 Desktop Runtime is installed
+- Check system tray for application icon
+- View logs from tray menu: **View Logs...**
+
+### MCP Server Not Accessible
+- Ensure tray application is running
+- Check firewall settings (port 8081 default)
+- Verify network visibility setting in tray menu
+- Check logs for connection errors
+
+### Subcircuits Not Found
+- Verify library files are in correct location
+- Check that libraries are indexed (see logs)
+- Use `reindex_libraries` tool to refresh index
+- Ensure subcircuit name matches library definition
+
+### IDE Integration Issues
+- Ensure SpiceService is running before configuring IDE
+- Restart IDE after configuration
+- Check IDE-specific configuration requirements
+- Verify `McpRemote.exe` is in installation directory
+
+### Library Search Not Working
+- Libraries are indexed on startup (may take a few seconds)
+- Check logs for indexing status
+- Verify library files are valid SPICE format
+- Try `reindex_libraries` tool to refresh
+
+## Project Structure
+
 ```
 SpiceService/
-├── SpiceSharp.Api.Core/          # Core library (models, services)
-│   ├── Models/                   # Data models (Circuit, ComponentDefinition, etc.)
-│   └── Services/                 # Analysis and component services
-├── SpiceSharp.Api.Core.Tests/   # Unit tests for core library
-├── SpiceSharp.Api.Plot/          # Plotting library (OxyPlot integration)
-│   ├── PlotGenerator.cs          # Main plot generation logic
-│   └── PlotOptions.cs            # Plot customization options
-├── SpiceSharp.Api.Plot.Tests/   # Plotting library tests
-├── SpiceSharp.Api.Web/           # MCP server (ASP.NET Core)
-│   ├── Services/
-│   │   ├── MCPService.cs         # MCP tool execution
-│   │   ├── DiscoveryService.cs    # UDP discovery service
-│   │   └── LibraryService.cs     # Library search service
-│   └── Controllers/
-│       └── MCPController.cs       # HTTP endpoint handler
-├── SpiceSharp.Api.Tray/          # Windows Forms tray app
-│   ├── TrayApplication.cs         # Main application logic
-│   ├── AboutDialog.cs             # About dialog
-│   ├── CircuitsDialog.cs         # Circuit management UI
-│   ├── LogDialog.cs               # Log viewer
-│   ├── IDEConfigurationDialog.cs   # IDE integration configuration
-│   ├── IDEConfigurationSuccessDialog.cs  # Configuration feedback
-│   └── Services/                  # Tray-specific services
-│       ├── IDEDetector.cs         # IDE detection
-│       ├── ConfigurationMerger.cs # Configuration file management
-│       ├── ConfigurationExecutor.cs # Configuration orchestration
-│       └── ConfigurationBackup.cs  # Backup service
-├── McpRemote/                     # Stdio ↔ HTTP proxy
-│   └── Program.cs                 # Proxy implementation
-├── SpiceServiceTray.Installer/    # WiX installer
-│   ├── Product.wxs                # Installer definition
-│   ├── build-installer.ps1        # Build script
-│   └── BUILD_INSTRUCTIONS.md      # Build instructions
-├── Scripts/                       # Utility scripts
-│   ├── CreateIcon.ps1             # Icon generation script
-│   ├── IdentifyProblematicLibraries.ps1  # Library validation utility
-│   └── VerifyBuild.ps1            # Build verification
-├── resources/                      # Application resources
-│   ├── spice.ico                  # Multi-resolution application icon
-│   ├── spice_100x100.png          # Icon source images
-│   └── spice_256x256.png
-├── libraries/                     # SPICE component libraries (500+ files)
-├── sample_libraries/              # Sample/test libraries
-├── netlistsvg/                    # NetlistSvg integration for schematic rendering
-└── dist/                          # Build output (MSI installer)
+├── SpiceSharp.Api.Core/          # Core simulation library
+├── SpiceSharp.Api.Plot/          # Plotting and visualization
+├── SpiceSharp.Api.Web/           # MCP server (HTTP/JSON-RPC)
+├── SpiceSharp.Api.Tray/          # Windows tray application
+├── McpRemote/                    # IDE integration proxy
+├── SpiceServiceTray.Installer/   # MSI installer
+├── libraries/                    # SPICE component libraries (500+ files)
+└── dist/                         # Build output (MSI installer)
 ```
 
-### Build Output
-Binaries are generated in standard .NET output directories:
-- `SpiceSharp.Api.Core/bin/Debug|Release/net8.0/`
-- `SpiceSharp.Api.Web/bin/Debug|Release/net8.0/`
-- `SpiceSharp.Api.Tray/bin/Debug|Release/net8.0/`
+## Development
 
-### Troubleshooting
+### Building from Source
 
-**Build Errors:**
-- Ensure all NuGet packages are restored: `dotnet restore`
-- Verify .NET SDK version: `dotnet --version` (should be 8.0 or later)
-- Clean and rebuild: `dotnet clean && dotnet build`
+```bash
+# Build solution
+dotnet build SpiceService.sln
 
-**Namespace Issues:**
-- `SpiceSharpBehavioral` uses the root namespace `SpiceSharpBehavioral`, not `SpiceSharpBehavioral.Components`
-- Behavioral sources (`BehavioralVoltageSource`, `BehavioralCurrentSource`) are in the root `SpiceSharpBehavioral` namespace
+# Run tests
+dotnet test SpiceService.sln
 
-**Visual Studio:**
-- If solution doesn't build in Visual Studio, try: `dotnet restore SpiceService.sln` from command line first
-- Ensure NuGet package restore is enabled in Visual Studio settings
+# Run tray application
+dotnet run --project SpiceSharp.Api.Tray
 
-**MCP Server:**
-- Ensure port is not already in use (default: 8081)
-- Check firewall settings if connecting from remote clients
-- Network visibility must be enabled in tray app for remote access
-- Discovery service uses UDP port 19847 (ensure firewall allows)
+# Run MCP server standalone
+dotnet run --project SpiceSharp.Api.Web
+```
 
-**Tray Application:**
-- Requires .NET 8.0 Desktop Runtime
-- Single instance enforcement (only one instance can run)
-- Check system tray for application icon if it doesn't appear
-- View logs from tray menu if issues occur
-- `McpRemote.exe` is automatically colocated with tray app during build (for development)
+### Running Tests
 
-**IDE Integration:**
-- Ensure SpiceService tray app is running before configuring IDEs
-- Restart IDE after configuration to pick up changes
-- VS Code requires workspace-level configuration (not global)
-- `McpRemote.exe` uses auto-discovery by default - no need to hardcode URLs
-- If auto-discovery fails, use explicit URL: `McpRemote.exe http://localhost:8081/mcp`
+```bash
+# All tests
+dotnet test SpiceService.sln
 
-**Library Search:**
-- Libraries are automatically indexed on startup
-- Add custom libraries to `Documents\SpiceService\libraries\`
-- Library indexing may take a few seconds on first startup
-- Check logs for library indexing status
+# Specific test project
+dotnet test SpiceSharp.Api.Core.Tests
+dotnet test SpiceSharp.Api.Web.Tests
+```
 
-Additional Resources
---------------------
+## Additional Resources
 
-### Documentation Files
+- **MCP Discovery Spec**: `mcp_discovery_spec.md` - Service discovery protocol
+- **IDE Integration**: `IDE-Integration-Configuration-Spec.md` - IDE setup details
+- **Installer Build**: `SpiceServiceTray.Installer/BUILD_INSTRUCTIONS.md` - MSI build guide
+- **Behavioral Sources**: `BEHAVIORAL_SOURCES.md` - Expression syntax guide
 
-- **`mcp_discovery_spec.md`**: Complete specification for MCP server discovery protocol
-- **`IDE-Integration-Configuration-Spec.md`**: Specification for IDE integration configuration feature
-- **`McpRemote-Architecture-Summary.md`**: Architecture overview of the McpRemote stdio ↔ HTTP proxy
-- **`SpiceServiceTray.Installer/BUILD_INSTRUCTIONS.md`**: Detailed MSI installer build instructions
-- **`netlistsvg/AI_DOCUMENTATION.md`**: NetlistSvg integration documentation
-
-### Icon Integration
-
-The project includes a comprehensive icon system:
-
-- **Icon Generation**: `Scripts/CreateIcon.ps1` converts PNG files to multi-resolution ICO format
-- **Icon File**: `resources/spice.ico` contains sizes: 16x16, 32x32, 48x48, 64x64, 128x128, 256x256
-- **Usage**: Icon is embedded in the executable and used throughout:
-  - Application executable
-  - Windows Forms dialogs
-  - MSI installer
-  - All shortcuts (Start Menu, Desktop, Startup)
-
-### Component Libraries
-
-The project includes 500+ SPICE component library files from the KiCad Spice Library project, covering:
-- Semiconductors (diodes, BJTs, MOSFETs, JFETs)
-- Passive components
-- Integrated circuits
-- Manufacturer-specific parts
-
-Libraries are automatically discovered and indexed for search functionality.
-
-### NetlistSvg Integration
-
-The project includes NetlistSvg integration for rendering circuit schematics as SVG diagrams. This enables visual representation of circuits alongside simulation results.
-
-License
--------
+## License
 
 Copyright (c) 2025 Keith Rule
 
@@ -1114,4 +466,3 @@ This software is free for personal, non-commercial use. Commercial use requires 
 - **NetlistSvg**: Schematic rendering
 
 See individual component licenses for details.
-

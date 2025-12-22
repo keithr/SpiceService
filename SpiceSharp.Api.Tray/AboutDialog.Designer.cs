@@ -175,7 +175,7 @@ partial class AboutDialog
         this.descLabel.Name = "descLabel";
         this.descLabel.Size = new System.Drawing.Size(540, 180);
         this.descLabel.TabIndex = 0;
-        this.descLabel.Text = "Circuit Simulation API Tray Application\r\n\r\nProvides a system tray interface for the SpiceSharp Circuit Simulation API with MCP server integration.\r\n\r\nFeatures:\r\n• Auto-start on login\r\n• Circuit management and export\r\n• MCP server integration\r\n• Network visibility control\r\n• Component library search with 500+ SPICE library files";
+        this.descLabel.Text = "Circuit Simulation API Tray Application\r\n\r\nProvides a system tray interface for the SpiceSharp Circuit Simulation API with MCP server integration.\r\n\r\nFeatures:\r\n• Auto-start on login\r\n• Circuit management and export\r\n• MCP server integration (JSON-RPC 2.0)\r\n• Network visibility control\r\n• Component library search with 500+ SPICE library files\r\n• Subcircuit support with speaker models\r\n• AC/DC/Transient analysis\r\n• Speaker database integration\r\n• Crossover design tools";
         this.descLabel.TextAlign = System.Drawing.ContentAlignment.TopLeft;
         // 
         // licenseLabel
@@ -187,7 +187,7 @@ partial class AboutDialog
         this.licenseLabel.Name = "licenseLabel";
         this.licenseLabel.Size = new System.Drawing.Size(540, 140);
         this.licenseLabel.TabIndex = 1;
-        this.licenseLabel.Text = "Copyright (c) 2025 Keith Rule\r\n\r\nThis software is free for personal, non-commercial use. Commercial use requires a commercial license.\r\n\r\nFor full license terms, see the LICENSE file.\r\n\r\nThird-Party Libraries:\r\n\r\nThis application uses SpiceSharp, a circuit simulation library provided under a liberal open-source license (MIT/BSD-style).\r\nCopyright and license information: https://github.com/SpiceSharp/SpiceSharp\r\n\r\nThis application includes SPICE component libraries from the KiCad Spice Library project as a courtesy.\r\nThese libraries are licensed under the GNU General Public License version 3 (GPL-3.0).\r\nKiCad Spice Library: https://github.com/KiCad/KiCad-Spice-Library";
+        this.licenseLabel.Text = "Copyright (c) 2025 Keith Rule\r\n\r\nThis software is free for personal, non-commercial use. Commercial use requires a commercial license.\r\n\r\nFor full license terms, see the LICENSE file.\r\n\r\nThird-Party Libraries:\r\n\r\nThis application uses SpiceSharp, a circuit simulation library provided under a liberal open-source license (MIT/BSD-style).\r\nCopyright and license information: https://github.com/SpiceSharp/SpiceSharp\r\n\r\nThis application includes SPICE component libraries from the KiCad Spice Library project as a courtesy.\r\nThese libraries are licensed under the GNU General Public License version 3 (GPL-3.0).\r\nKiCad Spice Library: https://github.com/KiCad/KiCad-Spice-Library\r\n\r\nSpeaker component models and subcircuit definitions are derived from publicly available Thiele-Small parameter databases and SPICE model libraries.";
         this.licenseLabel.TextAlign = System.Drawing.ContentAlignment.TopLeft;
         // 
         // buttonPanel
