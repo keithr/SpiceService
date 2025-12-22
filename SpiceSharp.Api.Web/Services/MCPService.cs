@@ -314,8 +314,8 @@ public class MCPService
                     type = "object",
                     properties = new
                     {
-                        query = new { type = "string", description = "Search query (model name substring, case-insensitive). Empty string returns all models.", @default = "" },
-                        type = new { type = "string", description = "Optional model type filter (e.g., 'diode', 'bjt_npn', 'mosfet_n')", @enum = new[] { "diode", "bjt_npn", "bjt_pnp", "mosfet_n", "mosfet_p", "jfet_n", "jfet_p" } },
+                        query = new { type = "string", description = "Search query (searches model/subcircuit names, and for subcircuits: PRODUCT_NAME, PART_NUMBER, MANUFACTURER metadata fields, case-insensitive). Empty string returns all models/subcircuits.", @default = "" },
+                        type = new { type = "string", description = "Optional type filter. For models: 'diode', 'bjt_npn', 'bjt_pnp', 'mosfet_n', 'mosfet_p', 'jfet_n', 'jfet_p'. For subcircuits: 'woofers', 'tweeters', 'midrange', etc. (filters by metadata TYPE field).", @enum = new[] { "diode", "bjt_npn", "bjt_pnp", "mosfet_n", "mosfet_p", "jfet_n", "jfet_p", "woofers", "tweeters", "midrange" } },
                         limit = new { type = "integer", description = "Maximum number of results to return (maximum: 100)", @default = 20, minimum = 1, maximum = 100 },
                         include_parameters = new { type = "boolean", description = "Include full parameter details for each model. Set to false for summary-only results (faster, smaller response).", @default = true },
                         count_only = new { type = "boolean", description = "Return only the count of matching models, without the model list. Useful for checking if models exist before fetching.", @default = false }
@@ -538,7 +538,7 @@ public class MCPService
             new MCPToolDefinition
             {
                 Name = "plot_impedance",
-                Description = "Plot impedance magnitude and phase versus frequency. Essential for speaker and filter design. IMPORTANT: The circuit must NOT have a voltage source at the measurement port (port_positive to port_negative). The tool injects its own test signal to measure Z = V/I. If a voltage source exists at the port, remove it before calling this tool, or measure impedance at a different port. For HTML document generation, use format='svg' to get SVG output that can be embedded directly.",
+                Description = "Plot impedance magnitude and phase versus frequency. Essential for speaker and filter design. IMPORTANT: The circuit must NOT have a voltage source at the measurement port (port_positive to port_negative). The tool injects its own test signal to measure Z = V/I. If a voltage source exists at the port, remove it before calling this tool, or measure impedance at a different port. For HTML document generation, use format='svg' with output_format=['text'] to get raw SVG output that can be embedded directly.",
                 InputSchema = new
                 {
                     type = "object",
@@ -550,7 +550,9 @@ public class MCPService
                         start_freq = new { type = "number", description = "Start frequency in Hz", @default = 20.0 },
                         stop_freq = new { type = "number", description = "Stop frequency in Hz", @default = 20000.0 },
                         points_per_decade = new { type = "integer", description = "Number of points per decade", @default = 20 },
-                        format = new { type = "string", @enum = new[] { "svg", "png" }, @default = "png", description = "Image format: 'svg' (RECOMMENDED for HTML document generation - can be embedded directly), 'png' (raster image, may work in some MCP clients). For embedding in HTML/text artifacts, use 'svg' format." }
+                        format = new { type = "string", @enum = new[] { "svg", "png" }, @default = "png", description = "Image format: 'svg' (RECOMMENDED - use with output_format=['text'] for embedding in HTML/text artifacts, most reliable), 'png' (raster image, may fail in some MCP clients). For programmatic use and HTML documents, prefer SVG+text format." },
+                        output_format = new { type = "array", items = new { type = "string", @enum = new[] { "image", "text", "file" } }, @default = new[] { "image" }, description = "Output format(s): 'text' (raw SVG string - RECOMMENDED for embedding in HTML/text artifacts, only works with SVG format), 'image' (base64-encoded image for display), 'file' (save to disk, not recommended due to filesystem isolation). BEST PRACTICE: Use format='svg' with output_format=['text'] for reliable embedding in artifacts. PNG+image may fail in some MCP clients with 'unsupported format' errors." },
+                        file_path = new { type = "string", description = "File path when 'file' is in output_format. Optional, auto-generated if not provided." }
                     },
                     required = new[] { "port_positive" }
                 }
@@ -1774,8 +1776,10 @@ public class MCPService
         var models = _libraryService.SearchModels(query, typeFilter, searchLimit);
         var totalModelCount = models.Count;
 
-        // Search subcircuits
-        var subcircuits = _libraryService.SearchSubcircuits(query, searchLimit);
+        // Search subcircuits - use typeFilter for subcircuit type filtering (e.g., "woofers", "tweeters")
+        // Note: typeFilter applies to both models and subcircuits, but model types and subcircuit types are different
+        // For subcircuits, typeFilter searches the metadata TYPE field
+        var subcircuits = _libraryService.SearchSubcircuits(query, typeFilter, searchLimit);
         var totalSubcircuitCount = subcircuits.Count;
 
         // Calculate total count
@@ -3332,6 +3336,21 @@ public class MCPService
             ? formatElement.GetString()?.ToLowerInvariant() ?? "png" 
             : "png";
 
+        // Parse output formats
+        var outputFormats = new List<string> { "image" };
+        if (arguments.TryGetProperty("output_format", out var outputFormatElement) && outputFormatElement.ValueKind == JsonValueKind.Array)
+        {
+            outputFormats.Clear();
+            foreach (var fmt in outputFormatElement.EnumerateArray())
+            {
+                var fmtStr = fmt.GetString();
+                if (!string.IsNullOrEmpty(fmtStr))
+                {
+                    outputFormats.Add(fmtStr.ToLowerInvariant());
+                }
+            }
+        }
+
         // Calculate number of points from points_per_decade
         var decades = Math.Log10(stopFreq / Math.Max(startFreq, 1e-30));
         var numberOfPoints = Math.Max(2, (int)Math.Ceiling(decades * pointsPerDecade) + 1);
@@ -3363,19 +3382,83 @@ public class MCPService
             throw new ArgumentException($"Circuit '{circuitId}' not found");
         }
 
+        // Calculate circuit complexity stats for error reporting
+        // Use reflection to access internal ComponentDefinitions property
+        var componentDefinitionsProp = typeof(CircuitModel).GetProperty("ComponentDefinitions",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var componentDefinitions = componentDefinitionsProp?.GetValue(circuit) as Dictionary<string, ComponentDefinition> ?? new Dictionary<string, ComponentDefinition>();
+        
+        var componentCount = componentDefinitions.Count;
+        var subcircuitCount = componentDefinitions.Values.Count(c => c.ComponentType == "subcircuit");
+        var internalNodes = new HashSet<string>();
+        foreach (var comp in componentDefinitions.Values)
+        {
+            if (comp.Nodes != null)
+            {
+                foreach (var node in comp.Nodes)
+                {
+                    if (node != "0" && node != portPositive && node != portNegative)
+                    {
+                        internalNodes.Add(node);
+                    }
+                }
+            }
+        }
+        var circuitStats = new
+        {
+            total_components = componentCount,
+            subcircuits = subcircuitCount,
+            internal_nodes = internalNodes.Count,
+            estimated_complexity = componentCount > 10 || subcircuitCount > 1 ? "high" : componentCount > 5 ? "medium" : "low"
+        };
+
         try
         {
-            _logger?.LogDebug("Plotting impedance: circuit={CircuitId}, port={PortPos}-{PortNeg}, freq={StartFreq}-{StopFreq}Hz, points={Points}", 
-                circuitId, portPositive, portNegative, startFreq, stopFreq, numberOfPoints);
+            _logger?.LogDebug("Plotting impedance: circuit={CircuitId}, port={PortPos}-{PortNeg}, freq={StartFreq}-{StopFreq}Hz, points={Points}, complexity={Complexity}", 
+                circuitId, portPositive, portNegative, startFreq, stopFreq, numberOfPoints, circuitStats.estimated_complexity);
 
-            // Calculate impedance
-            var impedanceResult = _impedanceAnalysisService.CalculateImpedance(
-                circuit,
-                portPositive,
-                portNegative,
-                startFreq,
-                stopFreq,
-                numberOfPoints);
+            // Calculate impedance - wrap in try-catch to identify stage
+            ImpedanceAnalysisResult impedanceResult;
+            try
+            {
+                impedanceResult = _impedanceAnalysisService.CalculateImpedance(
+                    circuit,
+                    portPositive,
+                    portNegative,
+                    startFreq,
+                    stopFreq,
+                    numberOfPoints);
+            }
+            catch (Exception ex) when (ex.Message.Contains("AC analysis") || ex.Message.Contains("ACAnalysis") || ex.Message.Contains("converge"))
+            {
+                _logger?.LogError(ex, "AC analysis stage failed for impedance calculation");
+                throw new InvalidOperationException(
+                    $"Impedance calculation failed at AC analysis stage for port '{portPositive}' to '{portNegative}'. " +
+                    $"Circuit complexity: {circuitStats.total_components} components ({circuitStats.subcircuits} subcircuits), {circuitStats.internal_nodes} internal nodes. " +
+                    $"Error: {ex.Message}. " +
+                    $"This may indicate convergence issues, matrix singularity, or circuit topology problems. " +
+                    $"Try: (1) Validate circuit with validate_circuit, (2) Check for parallel inductors or reactive loops, (3) Simplify circuit topology.", ex);
+            }
+            catch (Exception ex) when (ex.Message.Contains("DC") || ex.Message.Contains("operating point"))
+            {
+                _logger?.LogError(ex, "DC operating point stage failed for impedance calculation");
+                throw new InvalidOperationException(
+                    $"Impedance calculation failed at DC operating point stage for port '{portPositive}' to '{portNegative}'. " +
+                    $"Circuit complexity: {circuitStats.total_components} components ({circuitStats.subcircuits} subcircuits), {circuitStats.internal_nodes} internal nodes. " +
+                    $"Error: {ex.Message}. " +
+                    $"AC analysis requires a valid DC operating point. " +
+                    $"Try: (1) Ensure all nodes have DC paths to ground, (2) Check for floating nodes, (3) Verify subcircuit definitions are complete.", ex);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Impedance calculation stage failed (unknown stage)");
+                throw new InvalidOperationException(
+                    $"Impedance calculation failed for port '{portPositive}' to '{portNegative}'. " +
+                    $"Circuit complexity: {circuitStats.total_components} components ({circuitStats.subcircuits} subcircuits), {circuitStats.internal_nodes} internal nodes. " +
+                    $"Error: {ex.Message}. " +
+                    $"Exception type: {ex.GetType().Name}. " +
+                    $"This may indicate a circuit topology issue or analysis convergence problem.", ex);
+            }
 
             if (impedanceResult.Frequencies.Count == 0 || impedanceResult.Magnitude.Count == 0)
             {
@@ -3440,22 +3523,13 @@ public class MCPService
             // Build response
             var contentList = new List<MCPContent>();
 
-            // Add image content (base64)
-            if (plotResult.ImageData != null)
+            // Add text content (for SVG when text format is requested, or always for SVG when image format is requested)
+            if (plotResult.ImageData != null && imageFormat == ImageFormat.Svg)
             {
-                var base64Image = Convert.ToBase64String(plotResult.ImageData);
-                var mimeType = imageFormat == ImageFormat.Svg ? "image/svg+xml" : "image/png";
+                bool shouldAddText = outputFormats.Contains("text", StringComparer.OrdinalIgnoreCase) ||
+                                     outputFormats.Contains("image", StringComparer.OrdinalIgnoreCase);
                 
-                contentList.Add(new MCPContent
-                {
-                    Type = "image",
-                    Data = base64Image,
-                    MimeType = mimeType
-                });
-
-                // For SVG, also add as text (so it can be copied directly)
-                // This provides an alternative format that some clients may handle better
-                if (imageFormat == ImageFormat.Svg)
+                if (shouldAddText)
                 {
                     var svgText = System.Text.Encoding.UTF8.GetString(plotResult.ImageData);
                     contentList.Add(new MCPContent
@@ -3467,6 +3541,100 @@ public class MCPService
                 }
             }
 
+            // Add image content (base64)
+            if (outputFormats.Contains("image", StringComparer.OrdinalIgnoreCase) && plotResult.ImageData != null)
+            {
+                if (imageFormat == ImageFormat.Svg)
+                {
+                    // SVG image format (base64) - note: may not display in all clients
+                    var base64Image = Convert.ToBase64String(plotResult.ImageData);
+                    contentList.Add(new MCPContent
+                    {
+                        Type = "image",
+                        Data = base64Image,
+                        MimeType = "image/svg+xml"
+                    });
+                }
+                else
+                {
+                    // PNG format - standard image output
+                    var base64Image = Convert.ToBase64String(plotResult.ImageData);
+                    contentList.Add(new MCPContent
+                    {
+                        Type = "image",
+                        Data = base64Image,
+                        MimeType = "image/png"
+                    });
+                }
+            }
+
+            // Save to file if requested
+            string? filePath = null;
+            string? fileSaveError = null;
+            if (outputFormats.Contains("file", StringComparer.OrdinalIgnoreCase) && plotResult.ImageData != null)
+            {
+                // Get file path
+                if (arguments.TryGetProperty("file_path", out var filePathElement))
+                {
+                    filePath = filePathElement.GetString();
+                }
+
+                if (string.IsNullOrEmpty(filePath))
+                {
+                    // Generate default file path
+                    var extension = imageFormat == ImageFormat.Svg ? ".svg" : ".png";
+                    var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                    filePath = Path.Combine(Path.GetTempPath(), $"impedance_{circuitId}_{portPositive}_{timestamp}{extension}");
+                }
+
+                // Try to save file with error handling
+                try
+                {
+                    // Ensure directory exists
+                    var directory = Path.GetDirectoryName(filePath);
+                    if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                    {
+                        Directory.CreateDirectory(directory);
+                    }
+
+                    // Write file
+                    await File.WriteAllBytesAsync(filePath, plotResult.ImageData);
+                    
+                    // Verify file was written
+                    if (!File.Exists(filePath))
+                    {
+                        fileSaveError = "File write completed but file not found at expected path. This may indicate filesystem isolation between MCP server and client.";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    fileSaveError = $"Failed to save file: {ex.Message}";
+                }
+            }
+
+            // Build response with file path info if file format was requested
+            var responseText = new System.Text.StringBuilder();
+            if (outputFormats.Contains("file", StringComparer.OrdinalIgnoreCase))
+            {
+                responseText.Append(JsonSerializer.Serialize(new
+                {
+                    file_path = filePath,
+                    file_saved = !string.IsNullOrEmpty(filePath) && string.IsNullOrEmpty(fileSaveError),
+                    file_error = fileSaveError
+                }, new JsonSerializerOptions { WriteIndented = true }));
+            }
+
+            // If we have response text, add it as a separate content item
+            if (responseText.Length > 0)
+            {
+                contentList.Add(new MCPContent
+                {
+                    Type = "text",
+                    Text = responseText.ToString(),
+                    MimeType = "application/json"
+                });
+            }
+
             return new MCPToolResult
             {
                 Content = contentList
@@ -3475,12 +3643,43 @@ public class MCPService
         catch (ArgumentException ex)
         {
             _logger?.LogError(ex, "Impedance plot failed with argument error: {Message}", ex.Message);
-            throw;
+            // Preserve ArgumentException with detailed message including circuit stats
+            throw new ArgumentException(
+                $"Impedance calculation failed for port '{portPositive}' to '{portNegative}': {ex.Message}. " +
+                $"Circuit complexity: {circuitStats.total_components} components ({circuitStats.subcircuits} subcircuits), {circuitStats.internal_nodes} internal nodes. " +
+                "Common causes: (1) Port nodes not connected to circuit, (2) Circuit lacks DC path to ground (required for AC analysis), " +
+                "(3) Voltage source already exists at measurement port. " +
+                "Suggestion: Validate circuit topology and ensure all nodes have DC paths to ground.", ex);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger?.LogError(ex, "Impedance plot failed with operation error: {Message}", ex.Message);
+            // If the exception already contains stage information, preserve it; otherwise add circuit stats
+            if (ex.Message.Contains("stage") || ex.Message.Contains("Circuit complexity"))
+            {
+                // Already has detailed info, just re-throw
+                throw;
+            }
+            else
+            {
+                // Add circuit stats to existing message
+                throw new InvalidOperationException(
+                    $"Impedance calculation failed for port '{portPositive}' to '{portNegative}': {ex.Message}. " +
+                    $"Circuit complexity: {circuitStats.total_components} components ({circuitStats.subcircuits} subcircuits), {circuitStats.internal_nodes} internal nodes. " +
+                    "This often indicates a circuit topology issue (e.g., missing DC path, floating nodes, or validation failure). " +
+                    "Try: (1) Validate circuit with validate_circuit tool, (2) Ensure all nodes have DC paths to ground, " +
+                    "(3) Check for floating nodes or disconnected components.", ex);
+            }
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Impedance plot failed with unexpected error: {Message}", ex.Message);
-            throw new InvalidOperationException($"Impedance plot failed: {ex.Message}", ex);
+            throw new InvalidOperationException(
+                $"Impedance calculation failed for port '{portPositive}' to '{portNegative}': {ex.Message}. " +
+                $"Circuit complexity: {circuitStats.total_components} components ({circuitStats.subcircuits} subcircuits), {circuitStats.internal_nodes} internal nodes. " +
+                $"Error type: {ex.GetType().Name}. " +
+                "This may indicate a circuit topology issue, missing DC path, or internal error. " +
+                "Try validating the circuit and checking for DC path requirements.", ex);
         }
     }
 

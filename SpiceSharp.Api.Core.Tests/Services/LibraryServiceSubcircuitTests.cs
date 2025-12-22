@@ -13,7 +13,7 @@ public class LibraryServiceSubcircuitTests
         var service = new LibraryService();
 
         // Act
-        var results = service.SearchSubcircuits("test", 10);
+        var results = service.SearchSubcircuits("test", null, 10);
 
         // Assert
         Assert.Empty(results);
@@ -38,7 +38,7 @@ M1 9 7 8 8 MM L=100u W=100u
             service.IndexLibraries(new[] { tempDir });
 
             // Act
-            var results = service.SearchSubcircuits("irf1010n", 10);
+            var results = service.SearchSubcircuits("irf1010n", null, 10);
 
             // Assert
             Assert.Single(results);
@@ -75,7 +75,7 @@ R3 5 6 3K
             service.IndexLibraries(new[] { tempDir });
 
             // Act
-            var results = service.SearchSubcircuits("sub", 2);
+            var results = service.SearchSubcircuits("sub", null, 2);
 
             // Assert
             Assert.Equal(2, results.Count);
@@ -105,7 +105,7 @@ R1 1 2 1K
             service.IndexLibraries(new[] { tempDir });
 
             // Act
-            var results = service.SearchSubcircuits("mysubcircuit", 10);
+            var results = service.SearchSubcircuits("mysubcircuit", null, 10);
 
             // Assert
             Assert.Single(results);
@@ -138,7 +138,7 @@ R2 2 3 2K
             service.IndexLibraries(new[] { tempDir });
 
             // Assert
-            var results = service.SearchSubcircuits("test_sub", 10);
+            var results = service.SearchSubcircuits("test_sub", null, 10);
             Assert.Single(results);
             var sub = results.First();
             Assert.Equal("test_sub", sub.Name);
@@ -175,7 +175,7 @@ R2 3 4 2K
             service.IndexLibraries(new[] { tempDir });
 
             // Assert
-            var results = service.SearchSubcircuits("", 10);
+            var results = service.SearchSubcircuits("", null, 10);
             Assert.Equal(2, results.Count);
             Assert.Contains(results, s => s.Name == "sub1");
             Assert.Contains(results, s => s.Name == "sub2");
@@ -210,7 +210,7 @@ R2 3 4 2K
             service.IndexLibraries(new[] { tempDir });
 
             // Assert
-            var results = service.SearchSubcircuits("duplicate", 10);
+            var results = service.SearchSubcircuits("duplicate", null, 10);
             Assert.Single(results);
             // First one should win (lib1.lib)
             Assert.Contains("R1 1 2 1K", results.First().Definition);
@@ -243,7 +243,7 @@ R1 1 2 1K
             service.IndexLibraries(new[] { tempDir });
 
             // Assert
-            var subcircuits = service.SearchSubcircuits("test_sub", 10);
+            var subcircuits = service.SearchSubcircuits("test_sub", null, 10);
             var models = service.SearchModels("D1N4148", null, 10);
             
             Assert.Single(subcircuits);
@@ -283,7 +283,7 @@ Le 1 2 0.65mH
             service.IndexLibraries(new[] { tempDir });
 
             // Assert
-            var results = service.SearchSubcircuits("264_1148", 10);
+            var results = service.SearchSubcircuits("264_1148", null, 10);
             Assert.Single(results);
             var sub = results.First();
             Assert.Equal("264_1148", sub.Name);
@@ -327,7 +327,7 @@ Le 1 2 0.65mH
             service.IndexLibraries(new[] { tempDir });
 
             // Act
-            var results = service.SearchSubcircuits("speaker_test", 10);
+            var results = service.SearchSubcircuits("speaker_test", null, 10);
 
             // Assert
             Assert.Single(results);
@@ -376,7 +376,7 @@ Le 1 2 0.65mH
             service.IndexLibraries(new[] { tempDir });
 
             // Act
-            var results = service.SearchSubcircuits("264_1148", 10);
+            var results = service.SearchSubcircuits("264_1148", null, 10);
 
             // Assert
             Assert.Single(results);
@@ -538,6 +538,234 @@ Re PLUS 1 3.0
                     }
                 }
             }
+        }
+    }
+
+    [Fact]
+    public void SearchSubcircuits_SearchesProductNameMetadata()
+    {
+        // Arrange
+        var service = new LibraryService();
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var libFile = Path.Combine(tempDir, "test.lib");
+        File.WriteAllText(libFile, @"
+* MANUFACTURER: Dayton Audio
+* PART_NUMBER: 275-030
+* PRODUCT_NAME: Dayton Audio ND20FA-6 3/4"" Soft Dome Neodymium Tweeter
+* TYPE: tweeters
+.SUBCKT 275_030 PLUS MINUS
+Re PLUS 1 6.0
+.ENDS
+");
+
+        try
+        {
+            service.IndexLibraries(new[] { tempDir });
+
+            // Act - Search by product name
+            var results = service.SearchSubcircuits("ND20FA", null, 10);
+
+            // Assert
+            Assert.Single(results);
+            Assert.Equal("275_030", results.First().Name);
+            Assert.Equal("Dayton Audio ND20FA-6 3/4\" Soft Dome Neodymium Tweeter", results.First().Metadata["PRODUCT_NAME"]);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void SearchSubcircuits_SearchesPartNumberMetadata()
+    {
+        // Arrange
+        var service = new LibraryService();
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var libFile = Path.Combine(tempDir, "test.lib");
+        File.WriteAllText(libFile, @"
+* MANUFACTURER: HiVi
+* PART_NUMBER: 297-429
+* PRODUCT_NAME: HiVi B4N 4"" Aluminum Cone Woofer
+* TYPE: woofers
+.SUBCKT 297_429 PLUS MINUS
+Re PLUS 1 8.0
+.ENDS
+");
+
+        try
+        {
+            service.IndexLibraries(new[] { tempDir });
+
+            // Act - Search by part number
+            var results = service.SearchSubcircuits("297-429", null, 10);
+
+            // Assert
+            Assert.Single(results);
+            Assert.Equal("297_429", results.First().Name);
+            Assert.Equal("297-429", results.First().Metadata["PART_NUMBER"]);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void SearchSubcircuits_SearchesManufacturerMetadata()
+    {
+        // Arrange
+        var service = new LibraryService();
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var libFile = Path.Combine(tempDir, "test.lib");
+        File.WriteAllText(libFile, @"
+* MANUFACTURER: Dayton Audio
+* PART_NUMBER: 275-030
+* PRODUCT_NAME: Dayton Audio ND20FA-6 3/4"" Soft Dome Neodymium Tweeter
+* TYPE: tweeters
+.SUBCKT 275_030 PLUS MINUS
+Re PLUS 1 6.0
+.ENDS
+");
+
+        try
+        {
+            service.IndexLibraries(new[] { tempDir });
+
+            // Act - Search by manufacturer
+            var results = service.SearchSubcircuits("Dayton", null, 10);
+
+            // Assert
+            Assert.Single(results);
+            Assert.Equal("275_030", results.First().Name);
+            Assert.Equal("Dayton Audio", results.First().Metadata["MANUFACTURER"]);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void SearchSubcircuits_FiltersByType()
+    {
+        // Arrange
+        var service = new LibraryService();
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        File.WriteAllText(Path.Combine(tempDir, "woofer.lib"), @"
+* MANUFACTURER: HiVi
+* PART_NUMBER: 297-429
+* PRODUCT_NAME: HiVi B4N 4"" Aluminum Cone Woofer
+* TYPE: woofers
+.SUBCKT 297_429 PLUS MINUS
+Re PLUS 1 8.0
+.ENDS
+");
+        File.WriteAllText(Path.Combine(tempDir, "mosfet.lib"), @"
+* MANUFACTURER: Infineon
+* TYPE: mosfet
+.SUBCKT B4N PLUS MINUS GATE
+M1 PLUS GATE MINUS MINUS NMOS
+.ENDS
+");
+
+        try
+        {
+            service.IndexLibraries(new[] { tempDir });
+
+            // Act - Search for "B4N" with type filter "woofers"
+            var wooferResults = service.SearchSubcircuits("B4N", "woofers", 10);
+            
+            // Act - Search for "B4N" with type filter "mosfet"
+            var mosfetResults = service.SearchSubcircuits("B4N", "mosfet", 10);
+
+            // Assert
+            Assert.Single(wooferResults);
+            Assert.Equal("297_429", wooferResults.First().Name);
+            Assert.Equal("woofers", wooferResults.First().Metadata["TYPE"]);
+            
+            Assert.Single(mosfetResults);
+            Assert.Equal("B4N", mosfetResults.First().Name);
+            Assert.Equal("mosfet", mosfetResults.First().Metadata["TYPE"]);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void SearchSubcircuits_TypeFilterIsCaseInsensitive()
+    {
+        // Arrange
+        var service = new LibraryService();
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var libFile = Path.Combine(tempDir, "test.lib");
+        File.WriteAllText(libFile, @"
+* MANUFACTURER: Peerless
+* TYPE: woofers
+.SUBCKT test_woofer PLUS MINUS
+Re PLUS 1 8.0
+.ENDS
+");
+
+        try
+        {
+            service.IndexLibraries(new[] { tempDir });
+
+            // Act - Search with different case type filter
+            var results1 = service.SearchSubcircuits("test", "WOOFERS", 10);
+            var results2 = service.SearchSubcircuits("test", "Woofers", 10);
+            var results3 = service.SearchSubcircuits("test", "woofers", 10);
+
+            // Assert - All should find the same result
+            Assert.Single(results1);
+            Assert.Single(results2);
+            Assert.Single(results3);
+            Assert.Equal("test_woofer", results1.First().Name);
+            Assert.Equal("test_woofer", results2.First().Name);
+            Assert.Equal("test_woofer", results3.First().Name);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void SearchSubcircuits_ReturnsEmptyWhenTypeFilterDoesNotMatch()
+    {
+        // Arrange
+        var service = new LibraryService();
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        var libFile = Path.Combine(tempDir, "test.lib");
+        File.WriteAllText(libFile, @"
+* MANUFACTURER: Peerless
+* TYPE: woofers
+.SUBCKT test_woofer PLUS MINUS
+Re PLUS 1 8.0
+.ENDS
+");
+
+        try
+        {
+            service.IndexLibraries(new[] { tempDir });
+
+            // Act - Search with wrong type filter
+            var results = service.SearchSubcircuits("test", "tweeters", 10);
+
+            // Assert
+            Assert.Empty(results);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
         }
     }
 }

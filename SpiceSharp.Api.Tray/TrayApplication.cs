@@ -147,7 +147,6 @@ public class TrayApplication : ApplicationContext
             dcAnalysisService,
             acAnalysisService,
             transientAnalysisService);
-        var impedanceAnalysisService = new ImpedanceAnalysisService(acAnalysisService);
         var resultsCache = new CircuitResultsCache();
         var responseMeasurementService = new ResponseMeasurementService(resultsCache);
         var groupDelayService = new GroupDelayService(resultsCache);
@@ -171,6 +170,9 @@ public class TrayApplication : ApplicationContext
         
         // Create ComponentService AFTER LibraryService (needs LibraryService for subcircuit support)
         var componentService = new ComponentService(libraryService);
+        
+        // Create ImpedanceAnalysisService AFTER LibraryService (needs LibraryService for subcircuit support in cloned circuits)
+        var impedanceAnalysisService = new ImpedanceAnalysisService(acAnalysisService, libraryService);
 
         _mcpService = new MCPService(
             _circuitManager,

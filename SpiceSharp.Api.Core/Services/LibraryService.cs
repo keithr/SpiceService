@@ -125,18 +125,61 @@ public class LibraryService : ILibraryService
     }
 
     /// <inheritdoc/>
-    public List<SubcircuitDefinition> SearchSubcircuits(string query, int limit)
+    public List<SubcircuitDefinition> SearchSubcircuits(string query, string? typeFilter, int limit)
     {
         var queryLower = query?.ToLowerInvariant() ?? string.Empty;
+        var typeFilterLower = typeFilter?.ToLowerInvariant();
 
         var results = _subcircuitIndex.Values
             .Where(subcircuit =>
             {
-                // Filter by query (subcircuit name substring)
-                if (!string.IsNullOrEmpty(queryLower) &&
-                    !subcircuit.Name.ToLowerInvariant().Contains(queryLower))
+                // Filter by query - search subcircuit name and metadata fields
+                if (!string.IsNullOrEmpty(queryLower))
                 {
-                    return false;
+                    bool matchesQuery = false;
+
+                    // Search subcircuit name
+                    if (subcircuit.Name.ToLowerInvariant().Contains(queryLower))
+                    {
+                        matchesQuery = true;
+                    }
+                    // Search PRODUCT_NAME metadata
+                    else if (subcircuit.Metadata.TryGetValue("PRODUCT_NAME", out var productName) &&
+                             !string.IsNullOrEmpty(productName) &&
+                             productName.ToLowerInvariant().Contains(queryLower))
+                    {
+                        matchesQuery = true;
+                    }
+                    // Search PART_NUMBER metadata
+                    else if (subcircuit.Metadata.TryGetValue("PART_NUMBER", out var partNumber) &&
+                             !string.IsNullOrEmpty(partNumber) &&
+                             partNumber.ToLowerInvariant().Contains(queryLower))
+                    {
+                        matchesQuery = true;
+                    }
+                    // Search MANUFACTURER metadata
+                    else if (subcircuit.Metadata.TryGetValue("MANUFACTURER", out var manufacturer) &&
+                             !string.IsNullOrEmpty(manufacturer) &&
+                             manufacturer.ToLowerInvariant().Contains(queryLower))
+                    {
+                        matchesQuery = true;
+                    }
+
+                    if (!matchesQuery)
+                    {
+                        return false;
+                    }
+                }
+
+                // Filter by type if specified (searches metadata TYPE field)
+                if (!string.IsNullOrEmpty(typeFilterLower))
+                {
+                    if (!subcircuit.Metadata.TryGetValue("TYPE", out var subcircuitType) ||
+                        string.IsNullOrEmpty(subcircuitType) ||
+                        !subcircuitType.ToLowerInvariant().Equals(typeFilterLower))
+                    {
+                        return false;
+                    }
                 }
 
                 return true;

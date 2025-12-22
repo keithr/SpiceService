@@ -33,7 +33,9 @@ builder.Services.AddSingleton<IParameterSweepService, ParameterSweepService>();
 builder.Services.AddSingleton<INoiseAnalysisService, NoiseAnalysisService>();
 builder.Services.AddSingleton<ITemperatureSweepService, TemperatureSweepService>();
 builder.Services.AddSingleton<IImpedanceAnalysisService>(sp => 
-    new ImpedanceAnalysisService(sp.GetRequiredService<IACAnalysisService>()));
+    new ImpedanceAnalysisService(
+        sp.GetRequiredService<IACAnalysisService>(),
+        sp.GetService<ILibraryService>())); // Optional - needed for subcircuit support
 builder.Services.AddSingleton<IResponseMeasurementService>(sp => 
     new ResponseMeasurementService(sp.GetRequiredService<CircuitResultsCache>()));
 builder.Services.AddSingleton<IGroupDelayService>(sp => 

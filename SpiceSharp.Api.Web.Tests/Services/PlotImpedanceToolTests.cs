@@ -270,4 +270,64 @@ public class PlotImpedanceToolTests
         Assert.NotNull(result);
         Assert.NotEmpty(result.Content);
     }
+
+    [Fact]
+    public async Task ExecutePlotImpedance_WithOutputFormatText_ReturnsSVGText()
+    {
+        // Arrange: Create a simple RC circuit
+        var circuitId = "test_impedance_output_format";
+        var circuit = _circuitManager.CreateCircuit(circuitId, "RC circuit");
+        _circuitManager.SetActiveCircuit(circuitId);
+
+        var componentService = new ComponentService();
+        
+        // Add resistor R1 (1kΩ)
+        var r1Def = new ComponentDefinition
+        {
+            Name = "R1",
+            ComponentType = "resistor",
+            Nodes = new List<string> { "in", "out" },
+            Value = 1000.0
+        };
+        componentService.AddComponent(circuit, r1Def);
+
+        // Add capacitor C1 (1µF)
+        var c1Def = new ComponentDefinition
+        {
+            Name = "C1",
+            ComponentType = "capacitor",
+            Nodes = new List<string> { "out", "0" },
+            Value = 1e-6
+        };
+        componentService.AddComponent(circuit, c1Def);
+
+        var arguments = JsonSerializer.SerializeToElement(new
+        {
+            circuit_id = circuitId,
+            port_positive = "in",
+            port_negative = "0",
+            start_freq = 100.0,
+            stop_freq = 10000.0,
+            points_per_decade = 10,
+            format = "svg",
+            output_format = new[] { "text" }  // Request text format only
+        });
+
+        // Act
+        var result = await _mcpService.ExecuteTool("plot_impedance", arguments);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.NotEmpty(result.Content);
+        
+        // Should have text content (SVG)
+        var textContent = result.Content.FirstOrDefault(c => c.Type == "text" && c.MimeType == "image/svg+xml");
+        Assert.NotNull(textContent);
+        Assert.NotNull(textContent.Text);
+        Assert.Contains("<svg", textContent.Text, StringComparison.OrdinalIgnoreCase);
+        
+        // Should NOT have image content when only text format is requested
+        var imageContent = result.Content.FirstOrDefault(c => c.Type == "image");
+        Assert.Null(imageContent);
+    }
 }

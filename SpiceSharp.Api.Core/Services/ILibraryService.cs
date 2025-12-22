@@ -25,10 +25,11 @@ public interface ILibraryService
     /// <summary>
     /// Searches for subcircuits matching the query
     /// </summary>
-    /// <param name="query">Search query (subcircuit name substring, case-insensitive)</param>
+    /// <param name="query">Search query (searches subcircuit name, PRODUCT_NAME, PART_NUMBER, and MANUFACTURER metadata fields, case-insensitive)</param>
+    /// <param name="typeFilter">Optional type filter (e.g., "woofers", "tweeters", "midrange") - filters by metadata TYPE field</param>
     /// <param name="limit">Maximum number of results to return</param>
     /// <returns>List of matching subcircuit definitions</returns>
-    List<SubcircuitDefinition> SearchSubcircuits(string query, int limit);
+    List<SubcircuitDefinition> SearchSubcircuits(string query, string? typeFilter, int limit);
 
     /// <summary>
     /// Gets a subcircuit definition by exact name

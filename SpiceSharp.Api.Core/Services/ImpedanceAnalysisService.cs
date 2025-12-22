@@ -12,14 +12,17 @@ namespace SpiceSharp.Api.Core.Services;
 public class ImpedanceAnalysisService : IImpedanceAnalysisService
 {
     private readonly IACAnalysisService _acAnalysisService;
+    private readonly ILibraryService? _libraryService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ImpedanceAnalysisService"/> class
     /// </summary>
     /// <param name="acAnalysisService">AC analysis service for running frequency sweeps</param>
-    public ImpedanceAnalysisService(IACAnalysisService acAnalysisService)
+    /// <param name="libraryService">Optional library service for subcircuit definitions</param>
+    public ImpedanceAnalysisService(IACAnalysisService acAnalysisService, ILibraryService? libraryService = null)
     {
         _acAnalysisService = acAnalysisService ?? throw new ArgumentNullException(nameof(acAnalysisService));
+        _libraryService = libraryService;
     }
 
     /// <inheritdoc/>
@@ -51,9 +54,65 @@ public class ImpedanceAnalysisService : IImpedanceAnalysisService
         // Clone the circuit to avoid modifying the original
         var testCircuit = CloneCircuitForImpedance(circuit);
 
+        // Check for capacitor + subcircuit combination (known issue)
+        // Capacitors block DC, and subcircuits may need DC paths for AC analysis
+        // Use reflection to access internal ComponentDefinitions
+        var componentDefinitionsProp = typeof(CircuitModel).GetProperty("ComponentDefinitions",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var componentDefinitions = componentDefinitionsProp?.GetValue(testCircuit) as Dictionary<string, ComponentDefinition> ?? new Dictionary<string, ComponentDefinition>();
+        
+        var hasCapacitors = componentDefinitions.Values.Any(c => c.ComponentType == "capacitor");
+        var hasSubcircuits = componentDefinitions.Values.Any(c => c.ComponentType == "subcircuit");
+        
+        if (hasCapacitors && hasSubcircuits)
+        {
+            // Add large resistors in parallel with capacitors to provide DC paths
+            // This is a standard SPICE technique for AC analysis with capacitors
+            // Use 1e12 ohms (1 TΩ) - high enough to not affect AC impedance, low enough for DC path
+            var dcPathResistors = new List<ComponentDefinition>();
+            var capacitorNodes = new HashSet<(string node1, string node2)>();
+            
+            foreach (var cap in componentDefinitions.Values.Where(c => c.ComponentType == "capacitor"))
+            {
+                if (cap.Nodes != null && cap.Nodes.Count >= 2)
+                {
+                    var node1 = cap.Nodes[0];
+                    var node2 = cap.Nodes[1];
+                    // Create unique key (order doesn't matter)
+                    var key = string.Compare(node1, node2) < 0 ? (node1, node2) : (node2, node1);
+                    
+                    if (!capacitorNodes.Contains(key))
+                    {
+                        capacitorNodes.Add(key);
+                        // Add a large resistor in parallel with the capacitor for DC path
+                        var dcPathResistor = new ComponentDefinition
+                        {
+                            Name = $"R_DC_PATH_{cap.Name}",
+                            ComponentType = "resistor",
+                            Nodes = new List<string> { node1, node2 },
+                            Value = 1e12 // 1 TΩ - provides DC path without affecting AC impedance
+                        };
+                        dcPathResistors.Add(dcPathResistor);
+                    }
+                }
+            }
+            
+            // Add DC path resistors to the circuit
+            if (dcPathResistors.Count > 0)
+            {
+                var dcPathComponentService = _libraryService != null ? new ComponentService(_libraryService) : new ComponentService();
+                foreach (var dcPathResistor in dcPathResistors)
+                {
+                    dcPathComponentService.AddComponent(testCircuit, dcPathResistor);
+                    // Also add to ComponentDefinitions for tracking
+                    componentDefinitions[dcPathResistor.Name] = dcPathResistor;
+                }
+            }
+        }
+
         // Check for existing voltage sources at the measurement port
         // This will cause a conflict when we try to add our test source
-        var existingVoltageSources = testCircuit.ComponentDefinitions.Values
+        var existingVoltageSources = componentDefinitions.Values
             .Where(c => c.ComponentType == "voltage_source" &&
                        ((c.Nodes.Count >= 1 && c.Nodes[0] == portPositive && (c.Nodes.Count < 2 || c.Nodes[1] == portNegative)) ||
                         (c.Nodes.Count >= 2 && c.Nodes[0] == portNegative && c.Nodes[1] == portPositive)))
@@ -105,13 +164,37 @@ public class ImpedanceAnalysisService : IImpedanceAnalysisService
         // Export voltage at port_positive and current through the source
         var voltageSignal = $"v({portPositive})";
         var currentSignal = $"i({testSourceName})";
-        var result = _acAnalysisService.RunACAnalysis(
-            testCircuit,
-            startFrequency,
-            stopFrequency,
-            numberOfPoints,
-            new[] { voltageSignal, currentSignal }
-        );
+        
+        ACAnalysisResult result;
+        try
+        {
+            result = _acAnalysisService.RunACAnalysis(
+                testCircuit,
+                startFrequency,
+                stopFrequency,
+                numberOfPoints,
+                new[] { voltageSignal, currentSignal }
+            );
+        }
+        catch (Exception ex)
+        {
+            // Wrap AC analysis exceptions with stage information
+            throw new InvalidOperationException(
+                $"AC analysis failed during impedance calculation: {ex.Message}. " +
+                $"This occurs when running frequency sweep to measure voltage and current. " +
+                $"Common causes: convergence failure, matrix singularity, or circuit topology issues. " +
+                $"Check circuit validation and ensure all nodes have DC paths to ground.", ex);
+        }
+        
+        // Check if AC analysis returned an error status
+        if (result.Status != "Success" && !string.IsNullOrEmpty(result.Status) && 
+            (result.Frequencies.Count == 0 || result.MagnitudeDb.Count == 0))
+        {
+            throw new InvalidOperationException(
+                $"AC analysis failed during impedance calculation: {result.Status}. " +
+                $"No frequency response data was generated. " +
+                $"This may indicate convergence failure, matrix singularity, or circuit topology problems.");
+        }
 
         sw.Stop();
 
@@ -151,7 +234,12 @@ public class ImpedanceAnalysisService : IImpedanceAnalysisService
                 impedanceResult.Magnitude.Add(impedanceMagnitude);
                 
                 // Phase difference: Z_phase = V_phase - I_phase
+                // Note: SPICE measures current through voltage source with a sign convention.
+                // For impedance Z = V/I, we need V_phase - I_phase. However, SPICE's current
+                // convention may cause a 180° offset. We'll calculate the phase difference
+                // and let the user interpret it (or we can add a note in documentation).
                 var impedancePhase = voltagePhaseDeg[i] - currentPhaseDeg[i];
+                
                 // Normalize phase to -180 to +180 degrees
                 while (impedancePhase > 180) impedancePhase -= 360;
                 while (impedancePhase < -180) impedancePhase += 360;
@@ -215,7 +303,8 @@ public class ImpedanceAnalysisService : IImpedanceAnalysisService
         }
 
         // Recreate components and models in cloned circuit
-        var componentService = new ComponentService();
+        // Use library service if available (required for subcircuit components)
+        var componentService = _libraryService != null ? new ComponentService(_libraryService) : new ComponentService();
         var modelService = new ModelService();
 
         // Add models first
