@@ -1,12 +1,16 @@
 # Build script for SpiceService Tray MSI Installer
 # Requires: WiX Toolset installed, .NET SDK
+# Output: dist\SpiceServiceTray.<version>.msi (always uses Release build)
 
 param(
     [string]$Configuration = "Release",
     [string]$Platform = "x64"
 )
 
-Write-Host "Building SpiceService Tray MSI Installer..." -ForegroundColor Cyan
+# Force Release so the MSI always contains release-built code
+$Configuration = "Release"
+
+Write-Host "Building SpiceService Tray MSI Installer (Release)..." -ForegroundColor Cyan
 
 # Step 1: Build and publish McpRemote.exe
 Write-Host "`nStep 1: Building and publishing McpRemote.exe..." -ForegroundColor Yellow
@@ -43,6 +47,12 @@ if ($LASTEXITCODE -ne 0) {
         exit 1
     }
 }
+
+# Get version from built exe for versioned MSI filename
+$trayVersion = (Get-Item $trayAppExe).VersionInfo.FileVersion
+if (-not $trayVersion) { $trayVersion = "1.0.0.0" }
+$msiBaseName = "SpiceServiceTray.$trayVersion.msi"
+Write-Host "Version from tray app: $trayVersion -> MSI name: $msiBaseName" -ForegroundColor Cyan
 
 # Step 3: Check if WiX is installed
 Write-Host "`nStep 3: Checking for WiX Toolset..." -ForegroundColor Yellow
@@ -127,19 +137,42 @@ foreach ($path in $vsPaths) {
 if (-not $msbuild) {
     # Try to find msbuild in PATH
     $msbuild = Get-Command msbuild -ErrorAction SilentlyContinue
-    if ($msbuild) {
-        $msbuild = $msbuild.Path
-    } else {
-        Write-Host "MSBuild not found! Please install Visual Studio Build Tools or ensure MSBuild is in PATH." -ForegroundColor Red
-        exit 1
+    if ($msbuild) { $msbuild = $msbuild.Path }
+}
+
+$msbuildSucceeded = $false
+if ($msbuild) {
+    Write-Host "Using MSBuild: $msbuild" -ForegroundColor Cyan
+    & $msbuild "SpiceServiceTray.Installer.wixproj" /p:Configuration=$Configuration /p:Platform=$Platform /p:SolutionDir="$PSScriptRoot\..\" /t:Rebuild
+    $msbuildSucceeded = ($LASTEXITCODE -eq 0)
+}
+
+if ($msbuildSucceeded) {
+    # MSBuild outputs SpiceServiceTray.msi; rename to versioned name
+    $solutionRoot = Split-Path $PSScriptRoot -Parent
+    $distDir = Join-Path $solutionRoot "dist"
+    $unversionedMsi = Join-Path $distDir "SpiceServiceTray.msi"
+    $versionedMsi = Join-Path $distDir $msiBaseName
+    if ((Test-Path $unversionedMsi) -and $unversionedMsi -ne $versionedMsi) {
+        if (Test-Path $versionedMsi) { Remove-Item $versionedMsi -Force }
+        Move-Item $unversionedMsi $versionedMsi -Force
+        Write-Host "Renamed MSI to versioned name: $msiBaseName" -ForegroundColor Cyan
+    }
+    # Also rename .wixpdb if present
+    $unversionedPdb = Join-Path $distDir "SpiceServiceTray.wixpdb"
+    $versionedPdb = Join-Path $distDir "SpiceServiceTray.$trayVersion.wixpdb"
+    if ((Test-Path $unversionedPdb) -and $unversionedPdb -ne $versionedPdb) {
+        if (Test-Path $versionedPdb) { Remove-Item $versionedPdb -Force }
+        Move-Item $unversionedPdb $versionedPdb -Force
     }
 }
 
-Write-Host "Using MSBuild: $msbuild" -ForegroundColor Cyan
-& $msbuild "SpiceServiceTray.Installer.wixproj" /p:Configuration=$Configuration /p:Platform=$Platform /p:SolutionDir="$PSScriptRoot\..\" /t:Rebuild
-
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "MSBuild failed, trying standalone WiX tools..." -ForegroundColor Yellow
+if (-not $msbuildSucceeded) {
+    if ($msbuild) {
+        Write-Host "MSBuild failed, trying standalone WiX tools..." -ForegroundColor Yellow
+    } else {
+        Write-Host "MSBuild not found, using standalone WiX tools..." -ForegroundColor Yellow
+    }
     
     # Fallback to standalone WiX tools
     $trayAppSourceDir = Resolve-Path "..\SpiceSharp.Api.Tray\bin\$Configuration\net8.0-windows"
@@ -159,9 +192,9 @@ if ($LASTEXITCODE -ne 0) {
     }
     $binDir = $distDir
     
-    # Harvest files
+    # Harvest files (exclude main exe/dll and McpRemote.exe - they are in Product.wxs)
     Write-Host "Harvesting files..." -ForegroundColor Cyan
-    & $heatExe dir "$trayAppSourceDir" -cg HarvestedFiles -gg -sfrag -srd -scom -sreg -dr TrayAppFolder -var var.TrayAppSourceDir -out HarvestedFiles.wxs -x SpiceServiceTray.exe -x SpiceServiceTray.dll
+    & $heatExe dir "$trayAppSourceDir" -cg HarvestedFiles -gg -sfrag -srd -scom -sreg -dr TrayAppFolder -var var.TrayAppSourceDir -out HarvestedFiles.wxs -x SpiceServiceTray.exe -x SpiceServiceTray.dll -x McpRemote.exe
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Failed to harvest files!" -ForegroundColor Red
         exit 1
@@ -172,17 +205,14 @@ if ($LASTEXITCODE -ne 0) {
         $content = Get-Content "HarvestedFiles.wxs" -Raw
         $componentsToRemove = @()
         
-        # Find components containing SpiceServiceTray.exe or .dll
-        if ($content -match "(?s)<Component[^>]*Id=`"([^`"]+)`"[^>]*>.*?<File[^>]*Source=`"[^`"]*SpiceServiceTray\.(exe|dll)`"[^>]*>.*?</Component>") {
-            $componentsToRemove += $matches[1]
-            Write-Host "Found SpiceServiceTray component to remove: $($matches[1])" -ForegroundColor Yellow
-        }
-        
-        # Also check for any other matches
-        $matches = [regex]::Matches($content, "(?s)<Component[^>]*Id=`"([^`"]+)`"[^>]*>.*?<File[^>]*Source=`"[^`"]*SpiceServiceTray\.(exe|dll)`"[^>]*>.*?</Component>")
-        foreach ($match in $matches) {
-            if ($match.Groups[1].Value -notin $componentsToRemove) {
-                $componentsToRemove += $match.Groups[1].Value
+        # Remove components that are defined in Product.wxs: SpiceServiceTray.exe, SpiceServiceTray.dll, McpRemote.exe
+        $allComponents = [regex]::Matches($content, "(?s)<Component[^>]*Id=`"([^`"]+)`"[^>]*>.*?</Component>")
+        foreach ($m in $allComponents) {
+            $block = $m.Value
+            if ($block -like "*SpiceServiceTray.exe*" -or $block -like "*SpiceServiceTray.dll*" -or $block -like "*McpRemote.exe*") {
+                $id = $m.Groups[1].Value
+                $componentsToRemove += $id
+                Write-Host "Found component to remove (in Product.wxs): $id" -ForegroundColor Yellow
             }
         }
         
@@ -214,8 +244,9 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "Compiling WiX source files..." -ForegroundColor Cyan
     # Convert backslashes to forward slashes for WiX preprocessor
     $trayAppSourceDirEscaped = $trayAppSourceDir -replace '\\', '/'
-    # Define variable without var. prefix - WiX maps it automatically
-    & $candleExe "Product.wxs" -o "Product.wixobj" "-dTrayAppSourceDir=$trayAppSourceDirEscaped" -ext WixUIExtension.dll -ext WixUtilExtension.dll
+    $mcpRemoteSourceDir = (Resolve-Path "..\McpRemote\bin\$Configuration\net8.0\win-x64\publish").Path -replace '\\', '/'
+    # Define variables without var. prefix - WiX maps them automatically
+    & $candleExe "Product.wxs" -o "Product.wixobj" "-dTrayAppSourceDir=$trayAppSourceDirEscaped" "-dMcpRemoteSourceDir=$mcpRemoteSourceDir" -ext WixUIExtension.dll -ext WixUtilExtension.dll
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Failed to compile Product.wxs!" -ForegroundColor Red
         exit 1
@@ -233,9 +264,9 @@ if ($LASTEXITCODE -ne 0) {
     $locParam = if (Test-Path $locFile) { "-loc `"$locFile`"" } else { "" }
     $msiOutputPath = if ($Configuration -eq "Release") { 
         $solutionRoot = Split-Path $PSScriptRoot -Parent
-        Join-Path (Join-Path $solutionRoot "dist") "SpiceServiceTray.msi"
+        Join-Path (Join-Path $solutionRoot "dist") $msiBaseName
     } else { 
-        "$binDir\SpiceServiceTray.msi" 
+        Join-Path $binDir $msiBaseName
     }
     & $lightExe "Product.wixobj" "HarvestedFiles.wixobj" -out $msiOutputPath -ext WixUIExtension.dll -ext WixUtilExtension.dll -cultures:en-us -sice:ICE38 -sice:ICE64 $locParam
     if ($LASTEXITCODE -ne 0) {
@@ -247,41 +278,37 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "`nBuild completed successfully!" -ForegroundColor Green
-# Determine MSI path based on configuration - check both possible locations
-$msiPath = if ($Configuration -eq "Release") { 
-    $solutionRoot = Split-Path $PSScriptRoot -Parent
-    Join-Path (Join-Path $solutionRoot "dist") "SpiceServiceTray.msi"
-} else { 
-    "bin\$Configuration\SpiceServiceTray.msi" 
-}
-# Also check the old location in case MSBuild was used
-$oldMsiPath = "bin\$Configuration\SpiceServiceTray.msi"
-$actualMsiPath = if (Test-Path $msiPath) { 
-    $msiPath 
-} elseif (Test-Path $oldMsiPath) { 
-    $oldMsiPath 
-} else { 
-    $null 
-}
+# Determine MSI path: versioned name in dist (Release), or bin\Configuration
+$solutionRoot = Split-Path $PSScriptRoot -Parent
+$distDir = Join-Path $solutionRoot "dist"
+$msiPathVersioned = Join-Path $distDir $msiBaseName
+$msiPathUnversioned = Join-Path $distDir "SpiceServiceTray.msi"
+$oldMsiPath = "bin\$Configuration\$msiBaseName"
+$oldMsiPathUnversioned = "bin\$Configuration\SpiceServiceTray.msi"
+$actualMsiPath = if (Test-Path $msiPathVersioned) { $msiPathVersioned }
+    elseif (Test-Path $msiPathUnversioned) { $msiPathUnversioned }
+    elseif (Test-Path $oldMsiPath) { $oldMsiPath }
+    elseif (Test-Path $oldMsiPathUnversioned) { $oldMsiPathUnversioned }
+    else { $null }
 if ($actualMsiPath) {
     Write-Host "MSI installer created: $actualMsiPath" -ForegroundColor Green
     $fileInfo = Get-Item $actualMsiPath
     Write-Host "Size: $([math]::Round($fileInfo.Length / 1MB, 2)) MB" -ForegroundColor Cyan
     $fullPath = (Resolve-Path $actualMsiPath).Path
     Write-Host "Full path: $fullPath" -ForegroundColor Cyan
-    # If MSI is in old location and should be in dist, move it
-    if ($Configuration -eq "Release" -and $actualMsiPath -eq $oldMsiPath) {
-        Write-Host "Moving MSI to dist directory..." -ForegroundColor Yellow
-        $distDir = Split-Path $msiPath -Parent
-        if (-not (Test-Path $distDir)) {
-            New-Item -ItemType Directory -Path $distDir -Force | Out-Null
-        }
-        Move-Item $actualMsiPath $msiPath -Force
-        Write-Host "MSI moved to: $msiPath" -ForegroundColor Green
+    # If MSI is in bin and should be in dist with versioned name, move it
+    if ($Configuration -eq "Release" -and $actualMsiPath -ne $msiPathVersioned) {
+        Write-Host "Moving MSI to dist with versioned name..." -ForegroundColor Yellow
+        if (-not (Test-Path $distDir)) { New-Item -ItemType Directory -Path $distDir -Force | Out-Null }
+        $dest = $msiPathVersioned
+        if (Test-Path $dest) { Remove-Item $dest -Force }
+        Move-Item $actualMsiPath $dest -Force
+        Write-Host "MSI moved to: $dest" -ForegroundColor Green
     }
 } else {
     Write-Host "MSI file not found at expected locations:" -ForegroundColor Yellow
-    Write-Host "  Expected: $msiPath" -ForegroundColor Yellow
-    Write-Host "  Fallback: $oldMsiPath" -ForegroundColor Yellow
+    Write-Host "  Expected: $msiPathVersioned" -ForegroundColor Yellow
+    Write-Host "  Or: $msiPathUnversioned" -ForegroundColor Yellow
+    Write-Host "  Or: $oldMsiPath" -ForegroundColor Yellow
 }
 
